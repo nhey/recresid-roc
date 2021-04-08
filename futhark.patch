@@ -1,0 +1,12 @@
+diff --git a/default.nix b/default.nix
+index 3683f6b3e..02517a61a 100644
+--- a/default.nix
++++ b/default.nix
+@@ -84,6 +84,6 @@ in pkgs.stdenv.mkDerivation rec {
+
+   installPhase = ''
+     mkdir -p $out
+-    cp futhark-${suffix}.tar.xz $out/futhark-${suffix}.tar.xz
++    cp -r futhark-${suffix}/* $out
+   '';
+ }
