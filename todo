@@ -1,0 +1,6 @@
+1. generate data set with actual regressor matrix
+   --- modify gen-data.fut to output also mkX
+   --- parse this (try `sed`) for python
+2. setup pipeline for running python and futhark on same data
+3. copy helpers.fut here
+4. make it work with nans
