@@ -21,7 +21,7 @@ let f64_eps =
   let nearest = su64 + 1u64
   in (f64.from_bits nearest) - sf64
 
-entry recresid [n][k] (bsz: i64) (X: [n][k]f64) (y: [n]f64): []f64 =
+entry recresid [n][k] (bsz: i64) (X: [n][k]f64) (y: [n]f64) =
   let tol = f64.sqrt(f64_eps) / (f64.i64 k) -- TODO: maybe just pass tol as argument from python
   let ret = replicate (n - k) 0
   
