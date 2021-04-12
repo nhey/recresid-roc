@@ -44,6 +44,19 @@ def history_roc(X, y, alpha, confidence):
 
   pval = sctest(rcus)
   y_start = 0
+  if not np.isnan(pval) and pval < alpha:
+      bounds = boundary(rcus, confidence)
+      inds = (np.abs(rcus[1:]) > bounds[1:]).nonzero()[0]
+      y_start = rcus.size - np.min(inds) - 1 if inds.size > 0 else 0
+  return y_start
+
+def history_roc_debug(X, y, alpha, confidence):
+  X_rev = np.flip(X, axis=1)
+  y_rev = y[::-1]
+  rcus = efp(X_rev, y_rev)
+
+  pval = sctest(rcus)
+  y_start = 0
   pval_pass = False
   if not np.isnan(pval) and pval < alpha:
       bounds = boundary(rcus, confidence)

@@ -9,12 +9,15 @@ gen-data.out: gen-data.fut
 	rm $@.c
 
 clean:
-	rm -f *.out *.in *.in.py
+	rm -f *.out *.in
 
-d-2-10-2.in: gen-data.out
-	echo "2 10 2 0.25" | ./gen-data.out > $@
+%.in: gen-data.out
+	echo "$@" | sed -e "s/[d|.in]//g"  \
+	          | sed -e "s/^-//" \
+	          | sed -e "s/-/ /g" \
+	          | sed -e "s/$$/ 0.25/" \
+	          | ./gen-data.out > $@
 
-d-2-10-2.in.py: d-2-10-2.in
-	cat $< | sed -e "s/f64//g" | sed -e "s/\.nan/float('nan')/g" \
-	       | sed -e "0,/\[/{s/\[/X=\[/}" \
-	       | sed -e "2,/\[/{s/\[/image=\[/}" > $@
+d-2-50-10: d-2-50-10.in
+
+d-10-100-50: d-10-100-50.in

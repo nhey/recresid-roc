@@ -43,7 +43,7 @@ let boundary n confidence: [n]f64 =
   let div = f64.i64 n - 1
   in map (\i -> confidence + (2*confidence*(f64.i64 i))/div) (iota n)
 
-entry history_roc [n][k] bsz (X: [k][n]f64) (y: [n]f64) level confidence =
+entry history_roc [n][k] bsz level confidence (X: [k][n]f64) (y: [n]f64) =
   let m = n - k + 1
   let roc = rcusum bsz (map reverse X) y[::-1] :> [m]f64
   let pval = sctest roc
@@ -53,15 +53,14 @@ entry history_roc [n][k] bsz (X: [k][n]f64) (y: [n]f64) level confidence =
                  (indices roc[1:]) roc[1:] bounds[1:]
                  |> reduce_comm i64.min i64.highest
   -- only consider this index if it is statistically signifcant
-  let y_start = if ! (f64.isnan pval) && pval < level && ind != i64.highest
-                then m - ind - 1
-                else 0
-  in y_start
+  let check = !(f64.isnan pval) && pval < level && ind != i64.highest 
+  let y_start = if check then m - ind - 1 else 0
+  in (y_start, check)
 
 -- For the repl,
 let level = 0.05f64
 let conf = 0.9478989165152716f64
 let X = [[1.0f64,86.0f64],[1.0f64,76.0f64],[1.0f64,92.0f64],[1.0f64,90.0f64],[1.0f64,86.0f64],[1.0f64,84.0f64],[1.0f64,93.0f64],[1.0f64,100.0f64],[1.0f64,87.0f64],[1.0f64,86.0f64],[1.0f64,74.0f64],[1.0f64,98.0f64],[1.0f64,97.0f64],[1.0f64,84.0f64],[1.0f64,91.0f64],[1.0f64,34.0f64],[1.0f64,45.0f64],[1.0f64,56.0f64],[1.0f64,44.0f64],[1.0f64,82.0f64],[1.0f64,72.0f64],[1.0f64,55.0f64],[1.0f64,71.0f64],[1.0f64,50.0f64],[1.0f64,23.0f64],[1.0f64,39.0f64],[1.0f64,28.0f64],[1.0f64,32.0f64],[1.0f64,22.0f64],[1.0f64,25.0f64],[1.0f64,29.0f64],[1.0f64,7.0f64],[1.0f64,26.0f64],[1.0f64,19.0f64],[1.0f64,15.0f64],[1.0f64,20.0f64],[1.0f64,26.0f64],[1.0f64,28.0f64],[1.0f64,17.0f64],[1.0f64,22.0f64],[1.0f64,30.0f64],[1.0f64,25.0f64],[1.0f64,20.0f64],[1.0f64,47.0f64],[1.0f64,32.0f64]]
 let Xt = transpose X
-let y = [62.0f64, 72.0f64, 75.0f64, 55.0f64, 64.0f64, 21.0f64, 64.0f64, 80.0f64, 67.0f64, 72.0f64, 42.0f64, 76.0f64, 76.0f64, 41.0f64, 48.0f64, 76.0f64, 53.0f64, 60.0f64, 42.0f64, 78.0f64, 29.0f64, 48.0f64, 55.0f64, 29.0f64, 21.0f64, 47.0f64, 81.0f64, 36.0f64, 22.0f64, 44.0f64, 15.0f64,  7.0f64, 42.0f64,  9.0f64, 21.0f64, 21.0f64, 16.0f64, 16.0f64,  9.0f64, 14.0f64, 12.0f64, 17.0f64,  7.0f64, 34.0f64,  8.0f64]
-entry test = history_roc 1 Xt y level conf
+let y = [62.0f64, 72.0f64, f64.nan, 55.0f64, 64.0f64, f64.nan, 64.0f64, 80.0f64, 67.0f64, 72.0f64, 42.0f64, 76.0f64, 76.0f64, 41.0f64, 48.0f64, 76.0f64, 53.0f64, 60.0f64, 42.0f64, 78.0f64, 29.0f64, 48.0f64, 55.0f64, 29.0f64, 21.0f64, 47.0f64, 81.0f64, 36.0f64, 22.0f64, 44.0f64, 15.0f64,  7.0f64, 42.0f64,  9.0f64, 21.0f64, 21.0f64, 16.0f64, 16.0f64,  9.0f64, 14.0f64, 12.0f64, 17.0f64,  7.0f64, 34.0f64,  8.0f64]
+let test = history_roc 1 level conf Xt y
