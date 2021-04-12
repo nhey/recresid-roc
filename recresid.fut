@@ -10,8 +10,16 @@ let nonans xs: bool =
 let nan_to_num [n] (num: f64) (xs: [n]f64): [n]f64 =
   map (\x -> if f64.isnan x then num else x) xs
 
-let nandot [n] (xs: [n]f64) (ys: [n]f64): f64 =
+-- Dotproduct ignoring nans.
+let dotprod_nan [n] (xs: [n]f64) (ys: [n]f64): f64 =
   reduce (+) 0 (map2 (\x y -> if f64.isnan y then 0 else x*y) xs ys)
+
+-- Dotproduct filtering terms based on third vector (filter).
+let dotprod_filt [n] (vct: [n]f64) (xs: [n]f64) (ys: [n]f64) : f64 =
+  f64.sum (map3 (\v x y -> x * y * if (f64.isnan v) then 0.0 else 1.0) vct xs ys)
+
+let mvmul_filt [n][m] (vct: [m]f64) (xss: [n][m]f64) (ys: [m]f64) =
+    map (dotprod_filt vct ys) xss
 
 -- Translation of the C code here:
 -- https://en.wikipedia.org/wiki/Machine_epsilon
@@ -37,7 +45,7 @@ entry recresid [n][k] (bsz: i64) (X: [n][k]f64) (y: [n]f64) =
     let x = X[r, :]
     let d = linalg.matvecmul_row X1r x
     let fr = 1 + (linalg.dotprod x d)
-    let resid = y[r] - nandot x betar
+    let resid = y[r] - dotprod_nan x betar
     let recresidr = resid / f64.sqrt(fr)
 
     -- Update formulas
@@ -47,7 +55,7 @@ entry recresid [n][k] (bsz: i64) (X: [n][k]f64) (y: [n]f64) =
                    (flatten X1r :> [kk]f64)
                    (flatten ddT :> [kk]f64) |> unflatten k k
     -- beta = beta + X1 x * resid
-    let betar = map2 (+) betar (map (nandot x >-> (*resid)) X1r)
+    let betar = map2 (+) betar (map (dotprod_nan x >-> (*resid)) X1r)
     in (X1r, betar, recresidr)
 
   -- Perform first few iterations of update formulas with
