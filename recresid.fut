@@ -1,5 +1,5 @@
 import "lib/github.com/diku-dk/linalg/linalg"
-import "lib/github.com/2-tal/ols/ols"
+import "lib/github.com/nhey/ols/ols"
 
 module linalg = mk_linalg f64
 module ols = mk_ols f64
