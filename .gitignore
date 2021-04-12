@@ -1,5 +1,6 @@
 lib/
 __pycache__/
+*_pyopencl.py
 data/*.in
 .RData
 .Rhistory

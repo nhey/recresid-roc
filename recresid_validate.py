@@ -57,6 +57,7 @@ for fname in glob("./data/*.in"):
     ynn = y[~nan_inds]
     Xnn = X[~nan_inds]
     py_res = recresid(Xnn, ynn)
+    # NOTE: currently only handling non-nan input
     ocl_res = recresid_fut.recresid(1, Xnn, ynn)
 
     ok = ok and np.allclose(py_res, ocl_res.get())
