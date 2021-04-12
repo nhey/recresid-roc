@@ -24,7 +24,7 @@ print("allclose:", np.allclose(py_res, ocl_res.get()))
 def validate(num_tests, bsz):
   ok = True
   for i in range(num_tests):
-    X = np.random.rand(100,6).astype(np.float64)
+    X = np.random.rand(100,8).astype(np.float64)
     y = np.random.rand(100,1).astype(np.float64)
     py_res = recresid(X, y)
     ocl_res = recresid_fut.recresid(2, X, y)
@@ -36,10 +36,10 @@ def validate(num_tests, bsz):
       break
   return ok
 
-runs = 50
+runs = 100
 print("\nValidating {} random runs block size 1...".format(runs))
 print(validate(runs, 1))
 print("Validating {} random runs block size 2...".format(runs))
 print(validate(runs, 2))
-print("Validating {} random runs block size 3...".format(runs))
-print(validate(runs, 3))
+print("Validating {} random runs block size 4...".format(runs))
+print(validate(runs, 4))
