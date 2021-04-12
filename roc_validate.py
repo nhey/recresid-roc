@@ -1,5 +1,6 @@
 import statsmodels.api as sm
 import numpy as np
+from load_dataset import load_fut_data
 from python.roc import history_roc, compute_confidence_brownian, efp, sctest, history_roc_debug
 from roc_pyopencl import roc_pyopencl
 
@@ -28,14 +29,6 @@ ocl_res = roc_fut.history_roc(1, alpha, conf, X.T, y)
 print("python:", py_res)
 print("opencl:", ocl_res)
 
-
-def load_fut_data(filename, np_dtype=np.float64, f_dtype="f64"):
-  parse = lambda line: line.replace(f_dtype,"").replace(".nan", "float('nan')")
-  with open(filename, "r") as f:
-    Xt = np.array(eval(parse(f.readline())), dtype=np_dtype)
-    image = np.array(eval(parse(f.readline())), dtype=np_dtype)
-  return (Xt, image)
-
 from glob import glob
 print("Validating data sets in ./data.")
 for fname in glob("./data/*.in"):
@@ -44,10 +37,10 @@ for fname in glob("./data/*.in"):
   X = Xt.T
   for y in image:
     nan_inds = np.isnan(y)
-    y = y[~nan_inds]
-    Xtnn = (X[~nan_inds]).T
-    py_res = history_roc_debug(Xtnn, y, alpha, conf)
-    ocl_res = roc_fut.history_roc(1, alpha, conf, Xtnn, y)
+    ynn = y[~nan_inds]
+    Xnn = X[~nan_inds]
+    py_res = history_roc_debug(Xnn.T, ynn, alpha, conf)
+    ocl_res = roc_fut.history_roc(1, alpha, conf, Xnn.T, ynn)
     print("python:", py_res)
     print("opencl:", ocl_res)
 
