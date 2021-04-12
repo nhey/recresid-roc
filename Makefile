@@ -10,3 +10,6 @@ clean:
 
 %_validate: %_pyopencl
 	python $*_validate.py
+
+R_validate:
+	nix-shell r-shell.nix --run "python R_validate.py"
