@@ -1,5 +1,6 @@
 import statsmodels.api as sm
 import numpy as np
+from load_dataset import load_fut_data
 from python.roc import history_roc, compute_confidence_brownian, efp, sctest, history_roc_debug
 
 alpha = 0.05
@@ -36,13 +37,6 @@ R('''
     y_start
   }
 ''')
-
-def load_fut_data(filename, np_dtype=np.float64, f_dtype="f64"):
-  parse = lambda line: line.replace(f_dtype,"").replace(".nan", "float('nan')")
-  with open(filename, "r") as f:
-    Xt = np.array(eval(parse(f.readline())), dtype=np_dtype)
-    image = np.array(eval(parse(f.readline())), dtype=np_dtype)
-  return (Xt, image)
 
 from glob import glob
 print("Validating data sets in ./data.")
