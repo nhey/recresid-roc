@@ -2,7 +2,7 @@ Recursive residuals and ROC in futhark.
 Is work in progress.
 
 Validate by running
-`make recresid_validate` and `make roc_validate`.
+`make recresid_validate` and `make roc_validate`. Generate data sets in `/data` first, e.g. `make d-10-200-60.in`.
 A `shell.nix` is provided.
 
 Python version of ROC is validated against the R reference
