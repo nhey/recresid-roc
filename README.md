@@ -1,4 +1,4 @@
-Recursive residuals and ROC in futhark.
+Recursive residuals and reversely-ordered CUSUM in futhark.
 Is work in progress.
 
 Validate by running
