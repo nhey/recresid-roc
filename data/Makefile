@@ -4,6 +4,8 @@
 #   N is the time series length per pixel
 #   n is an ensured stable period from the beginning of each time series;
 #     the induced break point is some time after n.
+
+# gen-data.fut is adapted from github.com/diku-dk/futhark-kdd19
 gen-data.out: gen-data.fut
 	futhark c -o $@ $<
 	rm $@.c
@@ -11,7 +13,7 @@ gen-data.out: gen-data.fut
 clean:
 	rm -f *.out *.in
 
-datasets = d-2-50-10.in d-10-100-50.in d-10-200-60.in
+datasets = d-10-100-50.in d-10-200-60.in
 
 $(datasets): %.in: gen-data.out
 	echo "$@" | sed -e "s/[d|.in]//g"  \

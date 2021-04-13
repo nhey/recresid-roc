@@ -1,5 +1,6 @@
 lib/
 __pycache__/
+*.out
 *_pyopencl.py
 data/*.in
 .RData
