@@ -103,10 +103,6 @@ let filterPadWithKeys [n] 't
 
 let filter_nan_pad = filterPadWithKeys ((!) <-< f64.isnan) f64.nan
 
-let ols_wrapper [n][k] (bsz: i64) (X: [n][k]f64) (y: [n]f64): ([k]f64, [k][k]f64) =
-  let model = ols.fit bsz X y
-  in (model.params, model.cov_params)
-
 -- Map-distributed recresid.
 entry mrecresid [m][N][k] (bsz: i64) (X: [N][k]f64) (ys: [m][N]f64) =
   let tol = f64.sqrt(f64_eps) / (f64.i64 k)
