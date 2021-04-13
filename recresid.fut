@@ -31,8 +31,6 @@ entry recresid [n][k] (bsz: i64) (X: [n][k]f64) (y: [n]f64) =
   let X1: [k][k]f64 = model.cov_params -- (X.T X)^(-1)
   let beta: [k]f64 = nan_to_num 0 model.params
 
-  let kk = k*k
-
   let loop_body r X1r betar =
     -- Compute recursive residual
     let x = X[r, :]
@@ -44,9 +42,7 @@ entry recresid [n][k] (bsz: i64) (X: [n][k]f64) (y: [n]f64) =
     -- Update formulas
     let ddT = linalg.outer d d
     -- X1r = X1r - ddT/fr
-    let X1r = map2 (\x y -> x - y/fr)
-                   (flatten X1r :> [kk]f64)
-                   (flatten ddT :> [kk]f64) |> unflatten k k
+    let X1r = map2 (map2 (\x y -> x - y/fr)) X1r ddT
     -- beta = beta + X1 x * resid
     let betar = map2 (+) betar (map (dotprod_nan x >-> (*resid)) X1r)
     in (X1r, betar, recresidr)
