@@ -72,8 +72,6 @@ entry recresid [n][k] (bsz: i64) (X: [n][k]f64) (y: [n]f64) =
       in (check, r+1, X1r, betar, retr)
 
   -- Perform remaining iterations without check.
-  -- The loop is split to avoid thread divergence when this
-  -- function is mapped over an array.
   let (_, _, ret) =
     loop (X1r, betar, retr) = (X1, beta, ret) for r in (r'..<n) do
       let (X1r, betar, recresidr) = loop_body r X1r betar
