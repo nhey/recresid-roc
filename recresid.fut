@@ -127,10 +127,10 @@ entry mrecresid [m][N][k] (bsz: i64) (X: [N][k]f64) (ys: [m][N]f64) =
 
   let num_recresids_padded = N - k
   let rets = replicate (m*num_recresids_padded) 0
-             |> unflatten m num_recresids_padded
+             |> unflatten num_recresids_padded m
 
   -- Map is interchanged so that it is inside the sequential loop.
-  let (_, r', X1s, betas, rets) =
+  let (_, r', X1s, betas, retsT) =
     loop (check, r, X1rs, betars, retrs) = (true, k, X1s, betas, rets)
          while check && r < N do
       -- let xs = map (\X_nn -> X_nn[r, :]) Xs_nn
@@ -168,7 +168,7 @@ entry mrecresid [m][N][k] (bsz: i64) (X: [N][k]f64) (ys: [m][N]f64) =
              ) X1rs betars Xs_nn ys_nn
       let _show = recresidrs |> trace
       let _loop = (r, N-k) |> trace
-      -- let retrs[:, r-k] = recresidrs
+      -- let retrs[r-k, :] = recresidrs
       -- in (reduce_comm (||) false checks, r+1, X1rs, betars, retrs)
       in (reduce_comm (||) false checks, r+1, X1rs, betars, rets)
 
@@ -201,7 +201,7 @@ entry mrecresid [m][N][k] (bsz: i64) (X: [N][k]f64) (ys: [m][N]f64) =
   -- NOTE: this could maybe be replaced by an if-statement in the loop,
   -- which is probably desirable if the loop body is fully sequentialized.
   -- let _sz = assert (n' - k > 0) 0
-  in rets
+  in retsT
 
 
 
