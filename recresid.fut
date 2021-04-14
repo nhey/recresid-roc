@@ -107,19 +107,22 @@ let filter_nan_pad = filterPadWithKeys ((!) <-< f64.isnan) f64.nan
 entry mrecresid [m][N][k] (bsz: i64) (X: [N][k]f64) (ys: [m][N]f64) =
   let tol = f64.sqrt(f64_eps) / (f64.i64 k)
 
+  -- NOTE: the following could probably be replaced by an if-statement in
+  -- the loop, which might be desirable if the loop body is fully sequentialized.
+  --
   -- Rearrange `ys` so that valid values come before nans.
   let (ns, ys_nn, indss_nn) = unzip3 (map filter_nan_pad ys)
-
-  -- Initialise recursion.
+  -- Repeat this for `X`.
   let padding = replicate k f64.nan
   let Xs_nn: *[m][N][k]f64 =
     map (\inds_nn ->
            map (\i -> if i != -1 then X[i, :] else padding) inds_nn
         ) indss_nn |> trace
 
-  let _sanity_check = map (\n -> assert (n > k) true) ns
 
-  -- TODO: Fuse with Xs_nn loop above?
+  -- Initialise recursion by fitting on first `k` observations.
+  let _sanity_check = map (\n -> assert (n > k) true) ns
+  -- TODO: Fuse with Xs_nn loop above? `ys_nn` is same order as `indss_nn`.
   let (X1s, betas) = map2 (\X_nn y_nn ->
                              let model = ols.fit bsz X_nn[:k, :] y_nn[:k]
                              in (model.cov_params, model.params)
@@ -133,10 +136,6 @@ entry mrecresid [m][N][k] (bsz: i64) (X: [N][k]f64) (ys: [m][N]f64) =
   let (_, r', X1s, betas, retsT) =
     loop (check, r, X1rs, betars, retrs) = (true, k, X1s, betas, rets)
          while check && r < N do
-      -- let xs = map (\X_nn -> X_nn[r, :]) Xs_nn
-      -- let ds = map (\X1r -> mvmul_filt x X1r x)
-      -- let frs = map2 (\x d -> 1 + (dotprod_nan x d)) xs ds
-      -- let recresidrs = map4 (\y xy[r] - dotprod_nan x betar
       let (checks, X1rs, betars, recresidrs) = unzip4 <|
         map4 (\X1r betar X_nn y_nn ->
                 -- Compute recursive residual
@@ -147,7 +146,7 @@ entry mrecresid [m][N][k] (bsz: i64) (X: [N][k]f64) (ys: [m][N]f64) =
                 let recresidr = resid / f64.sqrt(fr)
 
                 -- Update formulas
-                let ddT = linalg.outer d d -- TODO nans in this?
+                let ddT = linalg.outer d d
                 -- X1r = X1r - ddT/fr
                 let X1r = map2 (map2 (\x y -> x - y/fr)) X1r ddT
                 -- beta = beta + X1 x * resid
@@ -168,65 +167,33 @@ entry mrecresid [m][N][k] (bsz: i64) (X: [N][k]f64) (ys: [m][N]f64) =
              ) X1rs betars Xs_nn ys_nn
       let _show = recresidrs |> trace
       let _loop = (r, N-k) |> trace
-      -- let retrs[r-k, :] = recresidrs
-      -- in (reduce_comm (||) false checks, r+1, X1rs, betars, retrs)
-      in (reduce_comm (||) false checks, r+1, X1rs, betars, rets)
+      let retrs[r-k, :] = recresidrs
+      in (reduce_comm (||) false checks, r+1, X1rs, betars, retrs)
+      -- NOTE: replace the two lines immediately above with the one
+      --       below and the program will compile with opencl backend
+      --       (also comment out the loop below or do similar changes).
+      -- in (reduce_comm (||) false checks, r+1, X1rs, betars, rets)
 
-  -- let (_, _, rets) =
-  --   loop (X1rs, betars, retrs) = (X1s, betas, rets) for r in (r'..<N) do
-  --     -- let xs = map (\X_nn -> X_nn[r, :]) Xs_nn
-  --     -- let ds = map (\X1r -> mvmul_filt x X1r x)
-  --     -- let frs = map2 (\x d -> 1 + (dotprod_nan x d)) xs ds
-  --     -- let recresidrs = map4 (\y xy[r] - dotprod_nan x betar
-  --     let (X1rs, betars, recresidrs) = unzip3 <|
-  --       map4 (\X1r betar X_nn y_nn ->
-  --               -- Compute recursive residual
-  --               let x = X_nn[r, :]
-  --               let d = mvmul_filt x X1r x
-  --               let fr = 1 + (dotprod_nan x d)
-  --               let resid = y_nn[r] - dotprod_nan x betar
-  --               let recresidr = resid / f64.sqrt(fr)
+  let (_, _, retsT) =
+    loop (X1rs, betars, retrs) = (X1s, betas, retsT) for r in (r'..<N) do
+      let (X1rs, betars, recresidrs) = unzip3 <|
+        map4 (\X1r betar X_nn y_nn ->
+                -- Compute recursive residual
+                let x = X_nn[r, :]
+                let d = mvmul_filt x X1r x
+                let fr = 1 + (dotprod_nan x d)
+                let resid = y_nn[r] - dotprod_nan x betar
+                let recresidr = resid / f64.sqrt(fr)
 
-  --               -- Update formulas
-  --               let ddT = linalg.outer d d -- TODO nans in this?
-  --               -- X1r = X1r - ddT/fr
-  --               let X1r = map2 (map2 (\x y -> x - y/fr)) X1r ddT
-  --               -- beta = beta + X1 x * resid
-  --               let betar = map2 (+) betar (map (dotprod_nan x >-> (*resid)) X1r)
-  --               in (X1r, betar, recresidr)
-  --            ) X1rs betars Xs_nn ys_nn
-  --     let retrs[:, r-k] = recresidrs
-  --     in (X1rs, betars, retrs)
+                -- Update formulas
+                let ddT = linalg.outer d d
+                -- X1r = X1r - ddT/fr
+                let X1r = map2 (map2 (\x y -> x - y/fr)) X1r ddT
+                -- beta = beta + X1 x * resid
+                let betar = map2 (+) betar (map (dotprod_nan x >-> (*resid)) X1r)
+                in (X1r, betar, recresidr)
+             ) X1rs betars Xs_nn ys_nn
+      let retrs[r-k, :] = recresidrs
+      in (X1rs, betars, retrs)
 
-  -- NOTE: this could maybe be replaced by an if-statement in the loop,
-  -- which is probably desirable if the loop body is fully sequentialized.
-  -- let _sz = assert (n' - k > 0) 0
   in retsT
-
-
-
-
-
-
-
-
-
-
---- For the repl,
-let X' = [[1.000000f64, 1.000000f64, 1.000000f64, 1.000000f64, 1.000000f64, 1.000000f64, 1.000000f64, 1.000000f64, 1.000000f64, 1.000000f64, 1.000000f64, 1.000000f64, 1.000000f64, 1.000000f64, 1.000000f64, 1.000000f64, 1.000000f64, 1.000000f64, 1.000000f64, 1.000000f64], [1.000000f64, 2.000000f64, 3.000000f64, 4.000000f64, 5.000000f64, 6.000000f64, 7.000000f64, 8.000000f64, 9.000000f64, 10.000000f64, 11.000000f64, 12.000000f64, 13.000000f64, 14.000000f64, 15.000000f64, 16.000000f64, 17.000000f64, 18.000000f64, 19.000000f64, 20.000000f64], [0.500000f64, 0.866025f64, 1.000000f64, 0.866025f64, 0.500000f64, 0.000000f64, -0.500000f64, -0.866025f64, -1.000000f64, -0.866025f64, -0.500000f64, -0.000000f64, 0.500000f64, 0.866025f64, 1.000000f64, 0.866025f64, 0.500000f64, 0.000000f64, -0.500000f64, -0.866025f64], [0.866025f64, 0.500000f64, 0.000000f64, -0.500000f64, -0.866025f64, -1.000000f64, -0.866025f64, -0.500000f64, -0.000000f64, 0.500000f64, 0.866025f64, 1.000000f64, 0.866025f64, 0.500000f64, 0.000000f64, -0.500000f64, -0.866025f64, -1.000000f64, -0.866025f64, -0.500000f64], [0.866025f64, 0.866025f64, 0.000000f64, -0.866025f64, -0.866025f64, -0.000000f64, 0.866025f64, 0.866025f64, 0.000000f64, -0.866025f64, -0.866025f64, -0.000000f64, 0.866025f64, 0.866025f64, 0.000000f64, -0.866025f64, -0.866025f64, -0.000000f64, 0.866025f64, 0.866025f64], [0.500000f64, -0.500000f64, -1.000000f64, -0.500000f64, 0.500000f64, 1.000000f64, 0.500000f64, -0.500000f64, -1.000000f64, -0.500000f64, 0.500000f64, 1.000000f64, 0.500000f64, -0.500000f64, -1.000000f64, -0.500000f64, 0.500000f64, 1.000000f64, 0.500000f64, -0.500000f64], [1.000000f64, 0.000000f64, -1.000000f64, -0.000000f64, 1.000000f64, 0.000000f64, -1.000000f64, -0.000000f64, 1.000000f64, 0.000000f64, -1.000000f64, -0.000000f64, 1.000000f64, 0.000000f64, -1.000000f64, -0.000000f64, 1.000000f64, 0.000000f64, -1.000000f64, -0.000000f64], [0.000000f64, -1.000000f64, -0.000000f64, 1.000000f64, 0.000000f64, -1.000000f64, -0.000000f64, 1.000000f64, 0.000000f64, -1.000000f64, 0.000000f64, 1.000000f64, 0.000000f64, -1.000000f64, 0.000000f64, 1.000000f64, 0.000000f64, -1.000000f64, -0.000000f64, 1.000000f64]]
-let ys = [[4523.875861f64, f64.nan, 4011.662068f64, 6939.676970f64, 5146.940712f64, 7975.103436f64, 6217.871075f64, 6854.595361f64, 6172.594314f64, 5300.062474f64, 7315.675860f64, 6989.361224f64, f64.nan, 4319.484241f64, 823.677255f64, 4724.745944f64, 3211.334831f64, f64.nan, 4343.563695f64, 3163.030112f64], [6142.967300f64, 7174.472021f64, 6938.832836f64, f64.nan, 4399.747538f64, 4213.380201f64, 4075.672258f64, 4775.551034f64, 4623.968859f64, 7600.757643f64, 4172.123361f64, 4566.777123f64, f64.nan, 6898.511013f64, 6025.019390f64, f64.nan, 5710.909328f64, 4130.184217f64, 3122.243613f64, 3821.353439f64]]
-
-let X = transpose X'
-let test = mrecresid 1i64 X ys
-
--- let res = map filter_nan_pad ys
--- let ns = map (.0) res
--- let ys_nn = map (.1) res
--- let indss_nn = map (.2) res
--- let Xs_nn =
---   map (\inds_nn ->
---          map (\i -> if i != -1 then copy X[i, :] else replicate 8 f64.nan) inds_nn
---       ) indss_nn |> trace
--- let n = ns[0]
--- let y_nn = ys_nn[0,:n]
--- let X_nn = Xs_nn[0,:n]
