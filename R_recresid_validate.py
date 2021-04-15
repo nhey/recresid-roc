@@ -3,8 +3,6 @@ import numpy as np
 from load_dataset import load_fut_data
 from python.recresid import recresid
 
-alpha = 0.05
-
 # R SETUP
 from rpy2.robjects.packages import importr
 import rpy2.robjects as robjects
@@ -23,6 +21,7 @@ for fname in glob("./data/*.in"):
   print("... ", fname)
   Xt, image = load_fut_data(fname)
   X = Xt.T
+  ok = True
   i = 0
   for y in image:
     i += 1
@@ -34,8 +33,10 @@ for fname in glob("./data/*.in"):
     py_res = recresid(Xnn, y)
     R_res = np.array(R("recresid(X, y)"))
     if not np.allclose(py_res, R_res):
-        print("python:", py_res)
-        print("R:     ", R_res)
-        print("at data set index", i)
-        py_save = py_res
-        R_save = R_res
+      print("python:", py_res)
+      print("R:     ", R_res)
+      print("at data set index", i)
+      py_save = py_res
+      R_save = R_res
+      ok = False
+  print(ok)

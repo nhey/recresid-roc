@@ -44,6 +44,7 @@ for fname in glob("./data/*.in"):
   print("... ", fname)
   Xt, image = load_fut_data(fname)
   X = Xt.T
+  ok = True
   i = 0
   for y in image:
     i += 1
@@ -56,6 +57,8 @@ for fname in glob("./data/*.in"):
     R_res = R("history_roc.matrix(X, y, level={})".format(alpha))[0]
     diff = py_res - int(R_res -1)
     if diff != 0:
-        print("python:", py_res)
-        print("R:     ", int(R_res - 1))
-        print("at data set index", i)
+      print("python:", py_res)
+      print("R:     ", int(R_res - 1))
+      print("at data set index", i)
+      ok = False
+  print(ok)
