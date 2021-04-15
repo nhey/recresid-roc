@@ -63,4 +63,4 @@ def history_roc_debug(X, y, alpha, confidence):
       inds = (np.abs(rcus[1:]) > bounds[1:]).nonzero()[0]
       y_start = rcus.size - np.min(inds) - 1 if inds.size > 0 else 0
       pval_pass = True
-  return y_start, pval_pass
+  return y_start, pval_pass, rcus
