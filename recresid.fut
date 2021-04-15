@@ -22,6 +22,7 @@ let f64_eps =
   let nearest = su64 + 1u64
   in (f64.from_bits nearest) - sf64
 
+-- NOTE: input cannot contain nan values
 entry recresid [n][k] (bsz: i64) (X: [n][k]f64) (y: [n]f64) =
   let tol = f64.sqrt(f64_eps) / (f64.i64 k) -- TODO: pass tol as arg?
   let ret = replicate (n - k) 0
@@ -103,7 +104,7 @@ let filterPadWithKeys [n] 't
 
 let filter_nan_pad = filterPadWithKeys ((!) <-< f64.isnan) f64.nan
 
--- Map-distributed `recresid`.
+-- Map-distributed `recresid`. There may be nan values in `ys`.
 entry mrecresid [m][N][k] (bsz: i64) (X: [N][k]f64) (ys: [m][N]f64) =
   let tol = f64.sqrt(f64_eps) / (f64.i64 k)
 
@@ -113,12 +114,10 @@ entry mrecresid [m][N][k] (bsz: i64) (X: [N][k]f64) (ys: [m][N]f64) =
   -- Rearrange `ys` so that valid values come before nans.
   let (ns, ys_nn, indss_nn) = unzip3 (map filter_nan_pad ys)
   -- Repeat this for `X`.
-  let padding = replicate k f64.nan
   let Xs_nn: *[m][N][k]f64 =
-    map (\inds_nn ->
-           map (\i -> if i != -1 then X[i, :] else padding) inds_nn
-        ) indss_nn |> trace
-
+    map (\j ->
+           map (\i -> if i >= 0 then X[i, :] else replicate k f64.nan) indss_nn[j]
+        ) (iota m)
 
   -- Initialise recursion by fitting on first `k` observations.
   let _sanity_check = map (\n -> assert (n > k) true) ns
@@ -135,7 +134,7 @@ entry mrecresid [m][N][k] (bsz: i64) (X: [N][k]f64) (ys: [m][N]f64) =
   -- Map is interchanged so that it is inside the sequential loop.
   let (_, r', X1s, betas, retsT) =
     loop (check, r, X1rs, betars, retrs) = (true, k, X1s, betas, rets)
-         while check && r < N do
+         while check && r < N - 1 do
       let (checks, X1rs, betars, recresidrs) = unzip4 <|
         map4 (\X1r betar X_nn y_nn ->
                 -- Compute recursive residual
@@ -154,19 +153,15 @@ entry mrecresid [m][N][k] (bsz: i64) (X: [N][k]f64) (ys: [m][N]f64) =
 
                 -- Check numerical stability (rectify if unstable)
                 let (check, X1r, betar) =
-                  if check && (r+1 < N) then
-                    -- We check update formula value against full OLS fit
-                    let rp1 = r+1
-                    let model = ols.fit bsz X_nn[:rp1, :] y_nn[:rp1]
-                    let nona = nonans(betar) && nonans(model.params)
-                    let allclose = map2 (-) model.params betar
-                                   |> all (\x -> f64.abs x <= tol)
-                    in (!(nona && allclose), model.cov_params, nan_to_num 0 model.params)
-                 else (check, X1r, betar)
+                  -- We check update formula value against full OLS fit
+                  let rp1 = r+1
+                  let model = ols.fit bsz X_nn[:rp1, :] y_nn[:rp1]
+                  let nona = nonans(betar) && nonans(model.params)
+                  let allclose = map2 (-) model.params betar
+                                 |> all (\x -> f64.abs x <= tol)
+                  in (!(nona && allclose), model.cov_params, nan_to_num 0 model.params)
                 in (check, X1r, betar, recresidr)
              ) X1rs betars Xs_nn ys_nn
-      let _show = recresidrs |> trace
-      let _loop = (r, N-k) |> trace
       let retrs[r-k, :] = recresidrs
       in (reduce_comm (||) false checks, r+1, X1rs, betars, retrs)
 
@@ -192,6 +187,7 @@ entry mrecresid [m][N][k] (bsz: i64) (X: [N][k]f64) (ys: [m][N]f64) =
       let retrs[r-k, :] = recresidrs
       in (X1rs, betars, retrs)
 
-  in retsT
+  let num_checks = r' - k -- debug output
+  in (retsT, num_checks)
 
-entry mrecresid1 X' y = mrecresid 1i64 (transpose X') y |> transpose
+entry mrecresid1 X' y = (mrecresid 1i64 (transpose X') y).0 |> transpose
