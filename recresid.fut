@@ -103,7 +103,7 @@ let filterPadWithKeys [n] 't
 
 let filter_nan_pad = filterPadWithKeys ((!) <-< f64.isnan) f64.nan
 
--- Map-distributed recresid.
+-- Map-distributed `recresid`.
 entry mrecresid [m][N][k] (bsz: i64) (X: [N][k]f64) (ys: [m][N]f64) =
   let tol = f64.sqrt(f64_eps) / (f64.i64 k)
 
@@ -169,10 +169,6 @@ entry mrecresid [m][N][k] (bsz: i64) (X: [N][k]f64) (ys: [m][N]f64) =
       let _loop = (r, N-k) |> trace
       let retrs[r-k, :] = recresidrs
       in (reduce_comm (||) false checks, r+1, X1rs, betars, retrs)
-      -- NOTE: replace the two lines immediately above with the one
-      --       below and the program will compile with opencl backend
-      --       (also comment out the loop below or do similar changes).
-      -- in (reduce_comm (||) false checks, r+1, X1rs, betars, rets)
 
   let (_, _, retsT) =
     loop (X1rs, betars, retrs) = (X1s, betas, retsT) for r in (r'..<N) do
@@ -197,3 +193,5 @@ entry mrecresid [m][N][k] (bsz: i64) (X: [N][k]f64) (ys: [m][N]f64) =
       in (X1rs, betars, retrs)
 
   in retsT
+
+entry mrecresid1 X' y = mrecresid 1i64 (transpose X') y |> transpose
