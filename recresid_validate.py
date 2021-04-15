@@ -1,3 +1,5 @@
+from datetime import timedelta
+from timeit import default_timer as timer
 import statsmodels.api as sm
 import numpy as np
 from load_dataset import load_fut_data
@@ -17,33 +19,11 @@ X, y = np.array(X, dtype=np.float64).copy(), np.array(Y, dtype=np.float64).copy(
 py_res = recresid(X, y)
 ocl_res = recresid_fut.recresid(2, X, y)
 
+print("PROCEDURE: recresid")
 print("Validating statsmodels example")
 print("python:", py_res)
 print("opencl:", ocl_res.get())
 print("allclose:", np.allclose(py_res, ocl_res.get()))
-
-def validate(num_tests, bsz):
-  ok = True
-  for i in range(num_tests):
-    X = np.random.rand(100,8).astype(np.float64)
-    y = np.random.rand(100,1).astype(np.float64)
-    py_res = recresid(X, y)
-    ocl_res = recresid_fut.recresid(2, X, y)
-
-    ok = ok and np.allclose(py_res, ocl_res.get())
-    if not ok:
-      print("python", py_res)
-      print("opencl", ocl_res)
-      break
-  return ok
-
-# runs = 100
-# print("\nValidating {} random runs block size 1...".format(runs))
-# print(validate(runs, 1))
-# print("Validating {} random runs block size 2...".format(runs))
-# print(validate(runs, 2))
-# print("Validating {} random runs block size 4...".format(runs))
-# print(validate(runs, 4))
 
 from glob import glob
 print("Validating data sets in ./data.")
@@ -52,17 +32,45 @@ for fname in glob("./data/*.in"):
   Xt, image = load_fut_data(fname)
   X = Xt.T
   ok = True
+  i = 0
   for y in image:
+    i += 1
     nan_inds = np.isnan(y)
     ynn = y[~nan_inds]
     Xnn = X[~nan_inds]
     py_res = recresid(Xnn, ynn)
-    # NOTE: currently only handling non-nan input
     ocl_res = recresid_fut.recresid(1, Xnn, ynn)
 
-    ok = ok and np.allclose(py_res, ocl_res.get())
-    if not ok:
+    allclose = np.allclose(py_res, ocl_res.get())
+    if not allclose:
       print("python", py_res)
       print("opencl", ocl_res)
-      break
+      print("at pixel", i)
+      py_single = py_res
+      ocl_single = ocl_res.get()
+      # break
+    ok = ok and allclose
   print(ok)
+
+print("\nMAP-DISTRIBUTED PROCEDURE: mrecresid")
+print("Validating data sets in ./data.")
+for fname in glob("./data/*.in"):
+  print("... ", fname)
+  Xt, image = load_fut_data(fname)
+  X = Xt.T
+  print("Computing python results...")
+  py_res = []
+  py_mask = []
+  for y in image:
+    nan_inds = np.isnan(y)
+    py_mask.append(nan_inds)
+    ynn = y[~nan_inds]
+    Xnn = X[~nan_inds]
+    py_res.append(recresid(Xnn, ynn))
+
+  py_res = np.concatenate(py_res) # flat
+  print("Computing opencl results...")
+  ocl_resT, num_checks = recresid_fut.mrecresid(1, X, image)
+  ocl_res = ocl_resT.get().T
+  ocl_res = ocl_res[~np.isnan(ocl_res)] # flat
+  print(np.allclose(py_res, ocl_res), num_checks)

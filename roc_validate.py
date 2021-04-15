@@ -42,7 +42,7 @@ for fname in glob("./data/*.in"):
     py_res = history_roc_debug(Xnn.T, ynn, alpha, conf)
     # NOTE: currently only handling non-nan input
     ocl_res = roc_fut.history_roc(1, alpha, conf, Xnn.T, ynn)
-    print("python:", py_res)
+    print("python:", py_res[:2])
     print("opencl:", ocl_res)
 
 # def validate(num_tests, bsz):
