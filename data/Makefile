@@ -13,7 +13,7 @@ gen-data.out: gen-data.fut
 clean:
 	rm -f *.out *.in
 
-datasets = d-2-20-10.in d-10-100-50.in d-10-200-60.in d-100-100-50.in
+datasets = d-2-20-10.in d-10-100-50.in d-10-200-60.in d-50-500-100.in
 
 $(datasets): %.in: gen-data.out
 	echo "$@" | sed -e "s/[d|.in]//g"  \

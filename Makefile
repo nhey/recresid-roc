@@ -13,5 +13,8 @@ objs = recresid_validate roc_validate
 $(objs): %_validate: %_pyopencl
 	python $@.py
 
-R_validate:
+R_roc_validate:
 	nix-shell r-shell.nix --run "python R_validate.py"
+
+R_recresid_validate:
+	nix-shell r-shell.nix --run "python R_recresid_validate.py"
