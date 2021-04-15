@@ -1,7 +1,7 @@
 import statsmodels.api as sm
 import numpy as np
 from load_dataset import load_fut_data
-from python.roc import history_roc, compute_confidence_brownian, efp, sctest, history_roc_debug
+from python.roc import history_roc, compute_confidence_brownian
 
 alpha = 0.05
 conf = compute_confidence_brownian(alpha)
@@ -44,15 +44,18 @@ for fname in glob("./data/*.in"):
   print("... ", fname)
   Xt, image = load_fut_data(fname)
   X = Xt.T
+  i = 0
   for y in image:
+    i += 1
     nan_inds = np.isnan(y)
     y = y[~nan_inds]
     Xnn = X[~nan_inds]
     robjects.r.assign("y", y)
     robjects.r.assign("X", Xnn)
-    py_res = history_roc_debug(Xnn.T, y, alpha, conf)
-    R_res = R("history_roc.matrix(X, y, level={})".format(alpha))
-    print("python:", py_res[0])
-    print("R:     ", int(R_res[0] - 1))
-  break
-
+    py_res = history_roc(Xnn.T, y, alpha, conf)
+    R_res = R("history_roc.matrix(X, y, level={})".format(alpha))[0]
+    diff = py_res - int(R_res -1)
+    if diff != 0:
+        print("python:", py_res)
+        print("R:     ", int(R_res - 1))
+        print("at data set index", i)
