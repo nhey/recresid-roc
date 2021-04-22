@@ -14,21 +14,18 @@ let nan_to_num [n] (num: f64) (xs: [n]f64): [n]f64 =
 let dotprod_nan [n] (xs: [n]f64) (ys: [n]f64): f64 =
   reduce (+) 0 (map2 (\x y -> if f64.isnan y then 0 else x*y) xs ys)
 
--- Translation of the C code here:
--- https://en.wikipedia.org/wiki/Machine_epsilon
-let f64_eps =
-  let sf64 = 1.0f64
-  let su64 = f64.to_bits sf64
-  let nearest = su64 + 1u64
-  in (f64.from_bits nearest) - sf64
-
 -- NOTE: input cannot contain nan values
 entry recresid [n][k] (bsz: i64) (X: [n][k]f64) (y: [n]f64) =
-  let tol = f64.sqrt(f64_eps) / (f64.i64 k) -- TODO: pass tol as arg?
+  let tol = f64.sqrt(f64.epsilon) / (f64.i64 k) -- TODO: pass tol as arg?
   let ret = replicate (n - k) 0
   
-  -- initialize recursion
+  -- Initialize recursion
   let model = ols.fit bsz X[:k, :] y[:k]
+  -- If rank < k, the data exhibits linear dependencies and the
+  -- OLS result is garbage. Retry fit with (k - rank) paramters.
+  -- let model = if model.rank < k
+  --             then ols.fit bsz X[:k, :k-model.rank] y[:k] -- TODO pad
+  --             else model
   let X1: [k][k]f64 = model.cov_params -- (X.T X)^(-1)
   let beta: [k]f64 = nan_to_num 0 model.params
 
@@ -106,7 +103,7 @@ let filter_nan_pad = filterPadWithKeys ((!) <-< f64.isnan) f64.nan
 
 -- Map-distributed `recresid`. There may be nan values in `ys`.
 entry mrecresid [m][N][k] (bsz: i64) (X: [N][k]f64) (ys: [m][N]f64) =
-  let tol = f64.sqrt(f64_eps) / (f64.i64 k)
+  let tol = f64.sqrt(f64.epsilon) / (f64.i64 k)
 
   -- NOTE: the following could probably be replaced by an if-statement in
   -- the loop, which might be desirable if the loop body is fully sequentialized.
