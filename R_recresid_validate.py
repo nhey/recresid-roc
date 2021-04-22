@@ -31,7 +31,7 @@ for fname in glob("./data/*.in"):
     robjects.r.assign("y", y)
     robjects.r.assign("X", Xnn)
     try:
-      py_res, cond = recresid(Xnn, y, debug=True)
+      py_res = recresid(Xnn, y)
     except np.linalg.LinAlgError: # singular matrix, no one should fit this
       continue
     R_res = np.array(R("recresid(X, y)"))
@@ -39,7 +39,6 @@ for fname in glob("./data/*.in"):
       print("python[:4], python[-1]:", py_res[:4], py_res[-1])
       print("R[:4],           R[-1]:", R_res[:4], R_res[-1])
       print("at data set index", i)
-      print("COND", cond)
       print("Relative absolute error")
       rel_err = np.abs((R_res - py_res)/R_res)
       per_err = rel_err * 100

@@ -1,4 +1,4 @@
-import statsmodels.api as sm
+from python.lm.lm import lm
 import numpy as np
 
 def _nonans(xs):
@@ -17,10 +17,11 @@ def recresid(X, y, tol=None):
     # initialize recursion
     yh = y[:k] # k x 1
     Xh = X[:k] # k x k
-    model = sm.OLS(yh, Xh, missing="drop").fit(method="qr")
+    b, cov_params, rank, _, _ = lm(Xh, yh)
 
-    X1 = model.normalized_cov_params   # (X'X)^(-1), k x k
-    bhat = np.nan_to_num(model.params) # k x 1
+    X1 = np.zeros((k,k))
+    X1[:rank, :rank] = cov_params # (X'X)^(-1), k x k
+    bhat = np.nan_to_num(b, 0.0) # k x 1
 
     check = True
     for r in range(k, n):
@@ -38,12 +39,12 @@ def recresid(X, y, tol=None):
         # Check numerical stability (rectify if unstable).
         if check:
             # We check update formula value against full OLS fit
-            Xh = X[:r+1]
-            model = sm.OLS(y[:r+1], Xh, missing="drop").fit(method="qr")
+            b, cov_params, rank, _, _ = lm(X[:r+1], y[:r+1])
 
-            nona = _nonans(bhat) and _nonans(model.params)
-            check = not (nona and np.allclose(model.params, bhat, atol=tol))
-            X1 = model.normalized_cov_params
-            bhat = np.nan_to_num(model.params, 0.0)
+            nona = _nonans(bhat) and _nonans(b)
+            check = not (nona and np.allclose(b, bhat, atol=tol))
+            X1 = np.zeros((k,k))
+            X1[:rank, :rank] = cov_params
+            bhat = np.nan_to_num(b, 0.0)
 
     return ret
