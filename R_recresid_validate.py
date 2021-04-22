@@ -30,12 +30,26 @@ for fname in glob("./data/*.in"):
     Xnn = X[~nan_inds]
     robjects.r.assign("y", y)
     robjects.r.assign("X", Xnn)
-    py_res = recresid(Xnn, y)
+    try:
+      py_res, cond = recresid(Xnn, y, debug=True)
+    except np.linalg.LinAlgError: # singular matrix, no one should fit this
+      continue
     R_res = np.array(R("recresid(X, y)"))
     if not np.allclose(py_res, R_res):
-      print("python:", py_res)
-      print("R:     ", R_res)
+      print("python[:4], python[-1]:", py_res[:4], py_res[-1])
+      print("R[:4],           R[-1]:", R_res[:4], R_res[-1])
       print("at data set index", i)
+      print("COND", cond)
+      print("Relative absolute error")
+      rel_err = np.abs((R_res - py_res)/R_res)
+      per_err = rel_err * 100
+      np.set_printoptions(formatter={"float": "{0:0.4e}".format})
+      print("Max error  {:10.5e} ({:.4f}%)".format(np.max(rel_err),
+                                                   np.max(per_err)))
+      print("Min error  {:10.5e} ({:.4f}%)".format(np.min(rel_err),
+                                                   np.min(per_err)))
+      print("Mean error {:10.5e} ({:.4f}%)".format(np.mean(rel_err),
+                                                   np.mean(per_err)))
       py_save = py_res
       R_save = R_res
       ok = False
