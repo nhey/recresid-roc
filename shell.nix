@@ -3,7 +3,7 @@ let
     "https://github.com/NixOS/nixpkgs/archive/df8e3bd110921621d175fad88c9e67909b7cb3d3.tar.gz"
   ) {};
 
-  futhark-rev = "6df5074681d548d72c5d1bb267a69ca5cab1ff94";
+  futhark-rev = "a29f2f580f02bd9ac43201cf9a9eb5c6f1e6347b";
   futhark-src = pkgs.applyPatches {
     name = "futhark-patched";
     src = (fetchTarball "https://github.com/diku-dk/futhark/archive/${futhark-rev}.tar.gz");
