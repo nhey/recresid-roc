@@ -1,8 +1,10 @@
 import "lib/github.com/diku-dk/linalg/linalg"
 import "lib/github.com/nhey/ols/ols"
+import "lm/lm"
 
 module linalg = mk_linalg f64
 module ols = mk_ols f64
+module lm = lm_f64
 
 let nonans xs: bool =
   !(any f64.isnan xs)
@@ -15,23 +17,18 @@ let dotprod_nan [n] (xs: [n]f64) (ys: [n]f64): f64 =
   reduce (+) 0 (map2 (\x y -> if f64.isnan y then 0 else x*y) xs ys)
 
 -- NOTE: input cannot contain nan values
-entry recresid [n][k] (bsz: i64) (X: [n][k]f64) (y: [n]f64) =
+entry recresid [n][k] (X': [k][n]f64) (y: [n]f64) =
   let tol = f64.sqrt(f64.epsilon) / (f64.i64 k) -- TODO: pass tol as arg?
   let ret = replicate (n - k) 0
-  
+
   -- Initialize recursion
-  let model = ols.fit bsz X[:k, :] y[:k]
-  -- If rank < k, the data exhibits linear dependencies and the
-  -- OLS result is garbage. Retry fit with (k - rank) paramters.
-  -- let model = if model.rank < k
-  --             then ols.fit bsz X[:k, :k-model.rank] y[:k] -- TODO pad
-  --             else model
+  let model = lm.fit X'[:, :k] y[:k]
   let X1: [k][k]f64 = model.cov_params -- (X.T X)^(-1)
   let beta: [k]f64 = nan_to_num 0 model.params
 
   let loop_body r X1r betar =
     -- Compute recursive residual
-    let x = X[r, :]
+    let x = X'[:, r]
     let d = linalg.matvecmul_row X1r x
     let fr = 1 + (linalg.dotprod x d)
     let resid = y[r] - dotprod_nan x betar
@@ -57,8 +54,8 @@ entry recresid [n][k] (bsz: i64) (X: [n][k]f64) (y: [n]f64) =
       let (check, X1r, betar) =
         if check && (r+1 < n) then
           -- We check update formula value against full OLS fit
-          let model = ols.fit bsz X[:r+1, :] y[:r+1]
-          let nona = nonans(betar) && nonans(model.params)
+          let model = lm.fit X'[:, :r+1] y[:r+1]
+          let nona = model.rank == k
           let allclose = map2 (-) model.params betar
                          |> all (\x -> f64.abs x <= tol)
           in (!(nona && allclose), model.cov_params, nan_to_num 0 model.params)
@@ -71,7 +68,9 @@ entry recresid [n][k] (bsz: i64) (X: [n][k]f64) (y: [n]f64) =
       let (X1r, betar, recresidr) = loop_body r X1r betar
       let retr[r-k] = recresidr
       in (X1r, betar, retr)
-  in ret
+
+  let num_checks = r' - k -- debug output
+  in (ret, num_checks)
 
 
 -- Helpers for lifted recresid.
