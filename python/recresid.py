@@ -20,7 +20,7 @@ def recresid(X, y, tol=None):
     b, cov_params, rank, _, _ = lm(Xh, yh)
 
     X1 = np.zeros((k,k))
-    X1[:rank, :rank] = cov_params # (X'X)^(-1), k x k
+    X1 = cov_params # (X'X)^(-1), k x k
     bhat = np.nan_to_num(b, 0.0) # k x 1
 
     check = True
@@ -44,7 +44,7 @@ def recresid(X, y, tol=None):
             nona = _nonans(bhat) and _nonans(b)
             check = not (nona and np.allclose(b, bhat, atol=tol))
             X1 = np.zeros((k,k))
-            X1[:rank, :rank] = cov_params
+            X1 = cov_params
             bhat = np.nan_to_num(b, 0.0)
 
     return ret

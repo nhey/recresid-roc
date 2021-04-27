@@ -10,5 +10,14 @@ def lm(X, y):
   # Inverting r with cholesky gives (X.T X)^{-1}
   cov_params = cho_solve((r[:rank, :rank], False), np.identity(rank))
   # Pivot fitted parameters to match original order of Xs columns
-  b[jpvt] = b
+  b[jpvt] = b[range(p)]
+  scratch = np.zeros((p,p))
+  scratch[:rank, :rank] = cov_params
+  # swap rows
+  scratch[jpvt, :] = scratch[range(p), :]
+  # swap columns
+  scratch[:, jpvt] = scratch[:, range(p)]
+  scratch[:, rank:] = 0
+  scratch[rank:, :] = 0
+  cov_params = scratch
   return b, cov_params, rank, r, qraux
