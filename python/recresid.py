@@ -19,12 +19,14 @@ def recresid(X, y, tol=None):
     Xh = X[:k] # k x k
     b, cov_params, rank, _, _ = lm(Xh, yh)
 
-    X1 = np.zeros((k,k))
     X1 = cov_params # (X'X)^(-1), k x k
+    inds = np.isnan(X1)
+    X1[inds] = 0.0
     bhat = np.nan_to_num(b, 0.0) # k x 1
 
     check = True
     for r in range(k, n):
+        prev_rank = rank
         # Compute recursive residual
         x = X[r]
         d = X1 @ x
@@ -40,11 +42,12 @@ def recresid(X, y, tol=None):
         if check:
             # We check update formula value against full OLS fit
             b, cov_params, rank, _, _ = lm(X[:r+1], y[:r+1])
-
-            nona = _nonans(bhat) and _nonans(b)
+            # R checks nans in fitted parameters; same as rank.
+            nona = prev_rank == k and rank == k
             check = not (nona and np.allclose(b, bhat, atol=tol))
-            X1 = np.zeros((k,k))
             X1 = cov_params
+            inds = np.isnan(X1)
+            X1[inds] = 0.0
             bhat = np.nan_to_num(b, 0.0)
 
     return ret

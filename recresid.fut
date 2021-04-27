@@ -2,6 +2,9 @@ import "lib/github.com/diku-dk/linalg/linalg"
 import "lib/github.com/nhey/ols/ols"
 import "lm/lm"
 
+import "lm/linpack"
+module linpack = linpack_d
+
 module linalg = mk_linalg f64
 module ols = mk_ols f64
 module lm = lm_f64
@@ -101,7 +104,7 @@ let filterPadWithKeys [n] 't
 let filter_nan_pad = filterPadWithKeys ((!) <-< f64.isnan) f64.nan
 
 -- Map-distributed `recresid`. There may be nan values in `ys`.
-entry mrecresid [m][N][k] (bsz: i64) (X: [N][k]f64) (ys: [m][N]f64) =
+entry mrecresid [m][N][k] (X: [N][k]f64) (ys: [m][N]f64) =
   let tol = f64.sqrt(f64.epsilon) / (f64.i64 k)
 
   -- NOTE: the following could probably be replaced by an if-statement in
@@ -118,21 +121,21 @@ entry mrecresid [m][N][k] (bsz: i64) (X: [N][k]f64) (ys: [m][N]f64) =
   -- Initialise recursion by fitting on first `k` observations.
   let _sanity_check = map (\n -> assert (n > k) true) ns
   -- TODO: Fuse with Xs_nn loop above? `ys_nn` is same order as `indss_nn`.
-  let (X1s, betas) = map2 (\X_nn y_nn ->
-                             let model = ols.fit bsz X_nn[:k, :] y_nn[:k]
-                             in (model.cov_params, model.params)
-                          ) Xs_nn ys_nn |> unzip
+  let (X1s, betas, ranks) = map2 (\X_nn y_nn ->
+                                    let model = lm.fit (transpose X_nn[:k, :]) y_nn[:k]
+                                    in (map (nan_to_num 0) model.cov_params, nan_to_num 0 model.params, model.rank)
+                                 ) Xs_nn ys_nn |> unzip3
 
   let num_recresids_padded = N - k
   let rets = replicate (m*num_recresids_padded) 0
              |> unflatten num_recresids_padded m
 
   -- Map is interchanged so that it is inside the sequential loop.
-  let (_, r', X1s, betas, retsT) =
-    loop (check, r, X1rs, betars, retrs) = (true, k, X1s, betas, rets)
+  let (_, r', X1s, betas, _, retsT) =
+    loop (check, r, X1rs, betars, ranks, retrs) = (true, k, X1s, betas, ranks, rets)
          while check && r < N - 1 do
-      let (checks, X1rs, betars, recresidrs) = unzip4 <|
-        map4 (\X1r betar X_nn y_nn ->
+      let (checks, X1rs, betars, ranks, recresidrs) = unzip5 <|
+        map5 (\X1r betar X_nn y_nn rank ->
                 -- Compute recursive residual
                 let x = X_nn[r, :]
                 let d = mvmul_filt x X1r x
@@ -148,18 +151,22 @@ entry mrecresid [m][N][k] (bsz: i64) (X: [N][k]f64) (ys: [m][N]f64) =
                 let betar = map2 (+) betar (map (dotprod_nan x >-> (*resid)) X1r)
 
                 -- Check numerical stability (rectify if unstable)
-                let (check, X1r, betar) =
+                let (check, X1r, betar, rank) =
                   -- We check update formula value against full OLS fit
                   let rp1 = r+1
-                  let model = ols.fit bsz X_nn[:rp1, :] y_nn[:rp1]
-                  let nona = nonans(betar) && nonans(model.params)
+                  -- TODO dont do this transpose each time...
+                  let model = lm.fit (transpose X_nn[:rp1, :]) y_nn[:rp1]
+                  -- Check that this and previous fit is full rank.
+                  -- R checks nans in fitted parameters to same effect.
+                  let nona = rank == k && model.rank == k
                   let allclose = map2 (-) model.params betar
                                  |> all (\x -> f64.abs x <= tol)
-                  in (!(nona && allclose), model.cov_params, nan_to_num 0 model.params)
-                in (check, X1r, betar, recresidr)
-             ) X1rs betars Xs_nn ys_nn
+                  -- TODO make lm not ouput nans but zeros...
+                  in (!(nona && allclose), map (nan_to_num 0) model.cov_params, nan_to_num 0 model.params, model.rank)
+                in (check, X1r, betar, rank, recresidr)
+             ) X1rs betars Xs_nn ys_nn ranks
       let retrs[r-k, :] = recresidrs
-      in (reduce_comm (||) false checks, r+1, X1rs, betars, retrs)
+      in (reduce_comm (||) false checks, r+1, X1rs, betars, ranks, retrs)
 
   let (_, _, retsT) =
     loop (X1rs, betars, retrs) = (X1s, betas, retsT) for r in (r'..<N) do
@@ -186,4 +193,4 @@ entry mrecresid [m][N][k] (bsz: i64) (X: [N][k]f64) (ys: [m][N]f64) =
   let num_checks = r' - k -- debug output
   in (retsT, num_checks)
 
-entry mrecresid1 X' y = (mrecresid 1i64 (transpose X') y).0 |> transpose
+entry mrecresid1 X' y = (mrecresid (transpose X') y).0 |> transpose
