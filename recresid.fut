@@ -15,6 +15,9 @@ let nonans xs: bool =
 let nan_to_num [n] (num: f64) (xs: [n]f64): [n]f64 =
   map (\x -> if f64.isnan x then num else x) xs
 
+let allclose a b tol =
+  map2 (-) a b |> all (\x -> f64.abs x <= tol)
+
 -- Dotproduct ignoring nans.
 let dotprod_nan [n] (xs: [n]f64) (ys: [n]f64): f64 =
   reduce (+) 0 (map2 (\x y -> if f64.isnan y then 0 else x*y) xs ys)
@@ -47,23 +50,22 @@ entry recresid [n][k] (X': [k][n]f64) (y: [n]f64) =
 
   -- Perform first few iterations of update formulas with
   -- numerical stability check.
-  let (_, r', X1, beta, ret) =
-    loop (check, r, X1r, betar, retr) = (true, k, X1, beta, ret)
+  let (_, r', X1, beta, _, ret) =
+    loop (check, r, X1r, betar, rank, retr) = (true, k, X1, beta, model.rank, ret)
          while check && r < n do
       let (X1r, betar, recresidr) = loop_body r X1r betar
       let retr[r-k] = recresidr
 
       -- Check numerical stability (rectify if unstable)
-      let (check, X1r, betar) =
+      let (check, X1r, betar, rank) =
         if check && (r+1 < n) then
           -- We check update formula value against full OLS fit
           let model = lm.fit X'[:, :r+1] y[:r+1]
-          let nona = model.rank == k
-          let allclose = map2 (-) model.params betar
-                         |> all (\x -> f64.abs x <= tol)
-          in (!(nona && allclose), model.cov_params, nan_to_num 0 model.params)
-       else (check, X1r, betar)
-      in (check, r+1, X1r, betar, retr)
+          let nona = rank == k && model.rank == k
+          let still_check = !(nona && allclose model.params betar tol)
+          in (still_check, model.cov_params, nan_to_num 0 model.params, model.rank)
+       else (check, X1r, betar, rank)
+      in (check, r+1, X1r, betar, rank, retr)
 
   -- Perform remaining iterations without check.
   let (_, _, ret) =
@@ -123,7 +125,7 @@ entry mrecresid [m][N][k] (X: [N][k]f64) (ys: [m][N]f64) =
   -- TODO: Fuse with Xs_nn loop above? `ys_nn` is same order as `indss_nn`.
   let (X1s, betas, ranks) = map2 (\X_nn y_nn ->
                                     let model = lm.fit (transpose X_nn[:k, :]) y_nn[:k]
-                                    in (map (nan_to_num 0) model.cov_params, nan_to_num 0 model.params, model.rank)
+                                    in (model.cov_params, nan_to_num 0 model.params, model.rank)
                                  ) Xs_nn ys_nn |> unzip3
 
   let num_recresids_padded = N - k
@@ -159,10 +161,9 @@ entry mrecresid [m][N][k] (X: [N][k]f64) (ys: [m][N]f64) =
                   -- Check that this and previous fit is full rank.
                   -- R checks nans in fitted parameters to same effect.
                   let nona = rank == k && model.rank == k
-                  let allclose = map2 (-) model.params betar
-                                 |> all (\x -> f64.abs x <= tol)
-                  -- TODO make lm not ouput nans but zeros...
-                  in (!(nona && allclose), map (nan_to_num 0) model.cov_params, nan_to_num 0 model.params, model.rank)
+                  let check = !(nona && allclose model.params betar tol)
+                  let check = still_check && !(all f64.isnan y_nn)
+                  in (check, model.cov_params, nan_to_num 0 model.params, model.rank)
                 in (check, X1r, betar, rank, recresidr)
              ) X1rs betars Xs_nn ys_nn ranks
       let retrs[r-k, :] = recresidrs
