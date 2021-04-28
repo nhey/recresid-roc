@@ -6,18 +6,18 @@ clean:
 	rm -rf __pycache__
 
 
-%_pyopencl: %.fut
-	futhark pyopencl --library -o $@ $<
+pyopencl_libs=recresid_pyopencl.py roc_pyopencl.py
+$(pyopencl_libs): %_pyopencl.py: %.fut
+	futhark pyopencl --library -o $*_pyopencl $<
 
 objs = recresid_validate roc_validate
-$(objs): %_validate: %_pyopencl
+$(objs): %_validate: %_pyopencl.py
 	python $@.py
 
 R = R_recresid_validate R_roc_validate
 $(R):
 	nix-shell r-shell.nix --run "python $@.py"
 
-peru = peru_recresid
-$(peru): peru_%: %_pyopencl
-	python $*_validate_peru.py
-
+realworld_recresid = peru_recresid sahara_recresid
+$(realworld_recresid): %_recresid: recresid_pyopencl.py
+	python $*_recresid_validate.py
