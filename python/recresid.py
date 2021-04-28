@@ -7,6 +7,8 @@ def _nonans(xs):
 def recresid(X, y, tol=None):
     n, k = X.shape
     assert(n == y.shape[0])
+    if n == 0:
+      return np.array([])
 
     if tol is None:
         tol = np.sqrt(np.finfo(np.float64).eps) / k
