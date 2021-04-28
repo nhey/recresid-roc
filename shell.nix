@@ -10,6 +10,20 @@ let
     patches = [ ./futhark.patch ];
   };
   futhark-pinned = pkgs.haskellPackages.callPackage futhark-src { suffix = "nightly"; };
+  
+  futhark-data = pkgs.python3Packages.buildPythonPackage {
+    name = "futhark-data";
+    version = "1.0";
+    src = pkgs.fetchFromGitHub {
+      repo = "python-futhark-data";
+      owner = "diku-dk";
+      rev = "9a108a1530f3e8798c34c6266bdbed63830214ae";
+      sha256 = "1x9x2d6sb45x8a5aiqfa8qylhlhszidvpxha5k69dby78zxx8ndc";
+    };
+    propagatedBuildInputs = with pkgs.python3Packages; [
+      numpy
+    ];
+  };
 in
 pkgs.stdenv.mkDerivation {
   name = "shell";
@@ -22,6 +36,7 @@ pkgs.stdenv.mkDerivation {
       numpy
       pyopencl
       statsmodels
+      futhark-data
     ]))
   ];
 } 
