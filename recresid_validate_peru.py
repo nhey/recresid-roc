@@ -64,7 +64,7 @@ for i, image_chunk in enumerate(np.array_split(image, chunks)):
 
   print("Computing opencl results...", end="")
   t_start = timer()
-  ocl_resT, num_checks = recresid_fut.mrecresid(1, X, image_chunk)
+  ocl_resT, num_checks = recresid_fut.mrecresid(X, image_chunk)
   t_stop = timer()
   ocl_res = ocl_resT.get().T
   ocl_res = ocl_res[~np.isnan(ocl_res)] # flat

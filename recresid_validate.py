@@ -67,19 +67,28 @@ for fname in glob("./data/*.in"):
   print("Computing python results...")
   py_res = []
   py_mask = []
+  t_start = timer()
   for i, y in enumerate(image):
     nan_inds = np.isnan(y)
     py_mask.append(nan_inds)
     ynn = y[~nan_inds]
     Xnn = X[~nan_inds]
     py_res.append(recresid(Xnn, ynn))
+  t_stop = timer()
+  print(timedelta(seconds=t_stop-t_start))
 
   py_res = np.concatenate(py_res) # flat
   print("Computing opencl results...")
+  t_start = timer()
   ocl_resT, num_checks = recresid_fut.mrecresid(X, image)
+  t_stop = timer()
   ocl_res = ocl_resT.get().T
   ocl_res = ocl_res[~np.isnan(ocl_res)] # flat
+  print(timedelta(seconds=t_stop-t_start))
   check = np.allclose(py_res, ocl_res)
   print(check, num_checks)
   if not check:
-    print(np.where(~np.isclose(py_res, ocl_res)))
+    inds = np.where(~np.isclose(py_res, ocl_res))
+    print(inds)
+    print(py_res[inds])
+    print(ocl_res[inds])
