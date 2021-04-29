@@ -12,6 +12,23 @@ def all_equal(target, current, tol):
     xy = xy/xn
   return xy <= tol
 
+# NOTE
+# BFAST R-package makes extensive use of the
+# strucchange R-package. However, if armadillo
+# bindings is available it will use their own
+# "strucchangeRcpp" version. In this, recursive
+# residuals differ significantly in that
+# only an absolute check is done on the equality
+# of parameters (R mostly does relative check)
+# AND it will use a simple solver rather than QR
+# whenever the condition number is less than some
+# tolerance.
+#
+# This is the armadillo version, which is simply
+# an absolute difference |x - y| <= tol.
+def approx_equal(x, y, tol):
+  return np.mean(np.abs(x - y)) <= tol
+
 def recresid(X, y, tol=None):
     n, k = X.shape
     assert(n == y.shape[0])
@@ -53,9 +70,11 @@ def recresid(X, y, tol=None):
             # We check update formula value against full OLS fit
             b, cov_params, rank, _, _ = lm(X[:r+1], y[:r+1])
             # R checks nans in fitted parameters; same as rank.
-            nona = (not np.isnan(ret[r-k]) and prev_rank == k
-                                           and rank == k)
-            check = not (nona and all_equal(b, bhat, tol))
+            # Also check on latest recresidual, because fr may
+            # be nan.
+            nona = (rank == k and prev_rank == k
+                              and not np.isnan(ret[r-k]))
+            check = not (nona and approx_equal(b, bhat, tol))
             X1 = cov_params
             bhat = np.nan_to_num(b, 0.0)
 

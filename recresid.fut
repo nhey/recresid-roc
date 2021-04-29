@@ -26,6 +26,23 @@ let allequal target current tol =
      then xy/xn <= tol
      else xy <= tol
 
+-- NOTE
+-- BFAST R-package makes extensive use of the
+-- strucchange R-package. However, if armadillo
+-- bindings is available it will use their own
+-- "strucchangeRcpp" version. In this, recursive
+-- residuals differ significantly in that
+-- only an absolute check is done on the equality
+-- of parameters (R mostly does relative check)
+-- AND it will use a simple solver rather than QR
+-- whenever the condition number is less than some
+-- tolerance.
+--
+-- This is the armadillo version, which is simply
+-- an absolute difference |x - y| <= tol.
+let approx_equal x y tol =
+  (mean_abs (map2 (-) x y)) <= tol
+
 -- Dotproduct ignoring nans.
 let dotprod_nan [n] (xs: [n]f64) (ys: [n]f64): f64 =
   reduce (+) 0 (map2 (\x y -> if f64.isnan y then 0 else x*y) xs ys)
@@ -69,9 +86,10 @@ entry recresid [n][k] (X': [k][n]f64) (y: [n]f64) =
         if check && (r+1 < n) then
           -- We check update formula value against full OLS fit
           let model = lm.fit X'[:, :r+1] y[:r+1]
-          let nona = rank == k && model.rank == k
-          let still_check = !(nona && allequal model.params betar tol)
-          in (still_check, model.cov_params, nan_to_num 0 model.params, model.rank)
+          let nona = !(f64.isnan recresidr) && rank == k
+                                            && model.rank == k
+          let check = !(nona && approx_equal model.params betar tol)
+          in (check, model.cov_params, nan_to_num 0 model.params, model.rank)
        else (check, X1r, betar, rank)
       in (check, r+1, X1r, betar, rank, retr)
 
@@ -172,7 +190,7 @@ entry mrecresid [m][N][k] (X: [N][k]f64) (ys: [m][N]f64) =
                   -- Also, yes it is really necessary to check all this.
                   let nona = !(f64.isnan recresidr) && rank == k
                                                     && model.rank == k
-                  let check = !(nona && allequal model.params betar tol)
+                  let check = !(nona && approx_equal model.params betar tol)
                   -- Stop checking on all-nan pixels.
                   let check = check && !(all f64.isnan y_nn)
                   in (check, model.cov_params, nan_to_num 0 model.params, model.rank)

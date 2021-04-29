@@ -80,7 +80,7 @@ def validate(name, X, image):
                                                  np.mean(per_err)))
 
 print("\nMAP-DISTRIBUTED PROCEDURE: mrecresid")
-for (path, name) in [("data/sahara.in", "sahara")]:
+for (path, name) in [("data/real/sahara.in", "sahara")]:
   print("Validating {} data set ({}).".format(name, path))
   with open(path, "rb") as f:
     Xt, image = futhark_data.load(f)
