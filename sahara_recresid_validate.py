@@ -57,7 +57,11 @@ def validate(name, X, image):
     if not check:
       inds = np.where(~np.isclose(py_res, ocl_res, equal_nan=True))
       print(inds)
+      print("First offending pixel")
+      print(image_chunk[inds[0][0]])
+      print("Python recresid")
       print(py_res[inds])
+      print("Futhark recresid")
       print(ocl_res[inds])
       # np.set_printoptions(formatter={"float": "{0:0.15e}".format}, threshold=np.inf)
       # print(X)

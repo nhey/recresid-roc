@@ -15,8 +15,16 @@ let nonans xs: bool =
 let nan_to_num [n] (num: f64) (xs: [n]f64): [n]f64 =
   map (\x -> if f64.isnan x then num else x) xs
 
-let allclose a b tol =
-  map2 (-) a b |> all (\x -> f64.abs x <= tol)
+let mean_abs [n] (xs: [n]f64) =
+  (reduce (+) 0 (map f64.abs xs)) / (f64.i64 n)
+
+-- R's all.equal.
+let allequal target current tol =
+  let xy = mean_abs (map2 (-) target current)
+  let xn = mean_abs target
+  in if xn > tol
+     then xy/xn <= tol
+     else xy <= tol
 
 -- Dotproduct ignoring nans.
 let dotprod_nan [n] (xs: [n]f64) (ys: [n]f64): f64 =
@@ -62,7 +70,7 @@ entry recresid [n][k] (X': [k][n]f64) (y: [n]f64) =
           -- We check update formula value against full OLS fit
           let model = lm.fit X'[:, :r+1] y[:r+1]
           let nona = rank == k && model.rank == k
-          let still_check = !(nona && allclose model.params betar tol)
+          let still_check = !(nona && allequal model.params betar tol)
           in (still_check, model.cov_params, nan_to_num 0 model.params, model.rank)
        else (check, X1r, betar, rank)
       in (check, r+1, X1r, betar, rank, retr)
@@ -123,10 +131,11 @@ entry mrecresid [m][N][k] (X: [N][k]f64) (ys: [m][N]f64) =
   -- Initialise recursion by fitting on first `k` observations.
   let _sanity_check = map (\n -> assert (n > k) true) ns
   -- TODO: Fuse with Xs_nn loop above? `ys_nn` is same order as `indss_nn`.
-  let (X1s, betas, ranks) = map2 (\X_nn y_nn ->
-                                    let model = lm.fit (transpose X_nn[:k, :]) y_nn[:k]
-                                    in (model.cov_params, nan_to_num 0 model.params, model.rank)
-                                 ) Xs_nn ys_nn |> unzip3
+  let (X1s, betas, ranks) =
+    map2 (\X_nn y_nn ->
+            let model = lm.fit (transpose X_nn[:k, :]) y_nn[:k]
+            in (model.cov_params, nan_to_num 0 model.params, model.rank)
+         ) Xs_nn ys_nn |> unzip3
 
   let num_recresids_padded = N - k
   let rets = replicate (m*num_recresids_padded) 0
@@ -160,9 +169,12 @@ entry mrecresid [m][N][k] (X: [N][k]f64) (ys: [m][N]f64) =
                   let model = lm.fit (transpose X_nn[:rp1, :]) y_nn[:rp1]
                   -- Check that this and previous fit is full rank.
                   -- R checks nans in fitted parameters to same effect.
-                  let nona = rank == k && model.rank == k
-                  let check = !(nona && allclose model.params betar tol)
-                  let check = still_check && !(all f64.isnan y_nn)
+                  -- Also, yes it is really necessary to check all this.
+                  let nona = !(f64.isnan recresidr) && rank == k
+                                                    && model.rank == k
+                  let check = !(nona && allequal model.params betar tol)
+                  -- Stop checking on all-nan pixels.
+                  let check = check && !(all f64.isnan y_nn)
                   in (check, model.cov_params, nan_to_num 0 model.params, model.rank)
                 in (check, X1r, betar, rank, recresidr)
              ) X1rs betars Xs_nn ys_nn ranks

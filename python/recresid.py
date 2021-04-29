@@ -4,6 +4,14 @@ import numpy as np
 def _nonans(xs):
   return not np.any(np.isnan(xs))
 
+# Mimics the behaviour of R's `all.equal`.
+def all_equal(target, current, tol):
+  xy = np.mean(np.abs(target - current))
+  xn = np.mean(np.abs(target))
+  if xn > tol:
+    xy = xy/xn
+  return xy <= tol
+
 def recresid(X, y, tol=None):
     n, k = X.shape
     assert(n == y.shape[0])
@@ -45,11 +53,10 @@ def recresid(X, y, tol=None):
             # We check update formula value against full OLS fit
             b, cov_params, rank, _, _ = lm(X[:r+1], y[:r+1])
             # R checks nans in fitted parameters; same as rank.
-            nona = prev_rank == k and rank == k
-            check = not (nona and np.allclose(b, bhat, atol=tol))
+            nona = (not np.isnan(ret[r-k]) and prev_rank == k
+                                           and rank == k)
+            check = not (nona and all_equal(b, bhat, tol))
             X1 = cov_params
-            inds = np.isnan(X1)
-            X1[inds] = 0.0
             bhat = np.nan_to_num(b, 0.0)
 
     return ret
