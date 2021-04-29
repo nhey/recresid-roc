@@ -26,8 +26,8 @@ $(datasets): %.in: gen-data.out
 	          | sed -e "s/$$/ 0.25/" \
 	          | ./gen-data.out > $@
 
-realdata = sahara.in
-$(realdata): %.in: mkBinInput.out
+realdata = real/sahara.in
+$(realdata): real/%.in: mkBinInput.out
 	gzip -d --keep $*/$*.in.gz
 	./mkBinInput.out --binary-output < $*/$*.in > $@
 	rm $*/*.in
