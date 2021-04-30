@@ -57,7 +57,7 @@ def recresid(X, y, tol=None):
         # Compute recursive residual
         x = X[r]
         d = X1 @ x
-        fr = 1 + (x @ d)
+        fr = 1 + np.dot(x, d)
         resid = y[r] - np.nansum(x * bhat) # dotprod ignoring nans
         ret[r-k] = resid / np.sqrt(fr)
 
