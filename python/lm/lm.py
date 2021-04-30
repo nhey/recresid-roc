@@ -17,7 +17,5 @@ def lm(X, y):
   scratch[jpvt, :] = scratch[range(p), :]
   # swap columns
   scratch[:, jpvt] = scratch[:, range(p)]
-  scratch[:, rank:] = 0
-  scratch[rank:, :] = 0
   cov_params = scratch
   return b, cov_params, rank, r, qraux
