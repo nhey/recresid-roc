@@ -18,6 +18,6 @@ R = R_recresid_validate R_roc_validate
 $(R):
 	nix-shell r-shell.nix --run "python $@.py"
 
-realworld_recresid = peru_recresid sahara_recresid
-$(realworld_recresid): %_recresid: recresid_pyopencl.py
-	python $*_recresid_validate.py
+data_recresid = rand_recresid realworld_recresid
+$(data_recresid): %_recresid: recresid_pyopencl.py
+	python recresid_validate_$*.py

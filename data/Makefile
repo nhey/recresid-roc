@@ -26,8 +26,9 @@ $(datasets): %.in: gen-data.out
 	          | sed -e "s/$$/ 0.25/" \
 	          | ./gen-data.out > $@
 
-realdata = real/sahara.in
+realdata = real/sahara.in real/peru.in real/africa.in
 $(realdata): real/%.in: mkBinInput.out
+	mkdir -p real
 	gzip -d --keep $*/$*.in.gz
 	./mkBinInput.out --binary-output < $*/$*.in > $@
 	rm $*/*.in

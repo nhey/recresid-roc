@@ -8,16 +8,17 @@ from recresid_pyopencl import recresid_pyopencl
 
 recresid_fut = recresid_pyopencl()
 
-def validate(name, X, image):
-  chunks = 4
+def validate(name, chunks, X, image, cache_dir=".cache"):
   print("image size", image.shape)
   print("regressor matrix", X.shape)
   k = X.shape[1]
   m, N = image.shape
   for i, image_chunk in enumerate(np.array_split(image, chunks)):
-    print("== chunk", image_chunk.shape)
+    print("~~ chunk {} ({}/{})".format(image_chunk.shape, i+1, chunks))
     print("Computing python results...", end="")
-    py_res_file = "{}.chunk{}.npy".format(name, i)
+    if not os.path.isdir(cache_dir):
+      os.makedirs(cache_dir)
+    py_res_file = "{}/{}.chunk{}.npy".format(cache_dir, name, i)
     if os.path.exists(py_res_file):
       with open(py_res_file, "rb") as f:
         py_res = np.load(f)
@@ -52,9 +53,13 @@ def validate(name, X, image):
     t_stop = timer()
     ocl_res = ocl_resT.get().T
     print(timedelta(seconds=t_stop-t_start))
+
     check = np.allclose(py_res, ocl_res, equal_nan=True)
-    print("All close?", check)
-    if not check:
+    print("np.allclose (rtol=1e-5, atol=1e-8):", end="")
+    if check:
+      print("\033[92m PASSED \033[0m")
+    else:
+      print("\033[91m FAILED \033[0m")
       inds = np.where(~np.isclose(py_res, ocl_res, equal_nan=True))
       print(inds)
       print("First offending pixel")
@@ -63,9 +68,7 @@ def validate(name, X, image):
       print(py_res[inds])
       print("Futhark recresid")
       print(ocl_res[inds])
-      # np.set_printoptions(formatter={"float": "{0:0.15e}".format}, threshold=np.inf)
-      # print(X)
-      # print(image_chunk[inds[0][0]])
+
     print("Number of stability checks:", num_checks)
 
     print("Relative absolute error")
@@ -80,8 +83,13 @@ def validate(name, X, image):
                                                  np.mean(per_err)))
 
 print("\nMAP-DISTRIBUTED PROCEDURE: mrecresid")
-for (path, name) in [("data/real/sahara.in", "sahara")]:
-  print("Validating {} data set ({}).".format(name, path))
+datasets = [
+  ("data/real/sahara.in", "sahara", 4),
+  ("data/real/peru.in", "peru", 4),
+  ("data/real/africa.in", "africa", 32),
+]
+for (path, name, chunks) in datasets:
+  print("\n== Validating {} data set ({}).".format(name, path))
   with open(path, "rb") as f:
     Xt, image = futhark_data.load(f)
-  validate(name, Xt.T, image)
+  validate(name, chunks, Xt.T, image)
