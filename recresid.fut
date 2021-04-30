@@ -177,36 +177,36 @@ entry mrecresid [m][N][k] (X: [N][k]f64) (ys: [m][N]f64) =
 
   -- Map is interchanged so that it is inside the sequential loop.
   let (_, r', X1s, betas, _, retsT) =
-    loop (check, r, X1s, betas, ranks, rets_r) = (true, k, X1s, betas, ranks, rets)
-         while check && r < N - 1 do
-      let (checks, X1s, betas, ranks, recresids_r) = unzip5 <|
-        map5 (\X1 beta X_nn y_nn rank ->
-                let (_, beta, recresid_r) = loop_body r X1 beta X_nn y_nn
-                -- Check numerical stability (rectify if unstable)
-                let (check, X1, beta, rank) =
-                  -- We check update formula value against full OLS fit
-                  let rp1 = r+1
-                  -- NOTE We only need the transposed versions for the
-                  -- first few iterations; I think it is more efficient
-                  -- to transpose locally here because the matrix will
-                  -- most definitely fit entirely in scratchpad memory.
-                  -- Also we get to read from the array 1-strided.
-                  let model = lm.fit (transpose X_nn[:rp1, :]) y_nn[:rp1]
-                  -- Check that this and previous fit is full rank.
-                  -- R checks nans in fitted parameters to same effect.
-                  -- Also, yes it really is necessary to check all this.
-                  let nona = !(f64.isnan recresid_r) && rank == k
-                                                     && model.rank == k
-                  let check = !(nona && approx_equal model.params beta tol)
-                  -- Stop checking on all-nan ("empty") pixels.
-                  let check = check && !(all f64.isnan y_nn)
-                  -- TODO edit lm so that params are without nans?
-                  in (check, model.cov_params, nan_to_num 0 model.params,
-                      model.rank)
-                in (check, X1, beta, rank, recresid_r)
-             ) X1s betas Xs_nn ys_nn ranks
-      let rets_r[r-k, :] = recresids_r
-      in (reduce_comm (||) false checks, r+1, X1s, betas, ranks, rets_r)
+    loop (check, r, X1s, betas, ranks, rets_r) = (true,k,X1s,betas,ranks,rets)
+      while check && r < N - 1 do
+        let (checks, X1s, betas, ranks, recresids_r) = unzip5 <|
+          map5 (\X1 beta X_nn y_nn rank ->
+                  let (_, beta, recresid_r) = loop_body r X1 beta X_nn y_nn
+                  -- Check numerical stability (rectify if unstable)
+                  let (check, X1, beta, rank) =
+                    -- We check update formula value against full OLS fit
+                    let rp1 = r+1
+                    -- NOTE We only need the transposed versions for the
+                    -- first few iterations; I think it is more efficient
+                    -- to transpose locally here because the matrix will
+                    -- most definitely fit entirely in scratchpad memory.
+                    -- Also we get to read from the array 1-strided.
+                    let model = lm.fit (transpose X_nn[:rp1, :]) y_nn[:rp1]
+                    -- Check that this and previous fit is full rank.
+                    -- R checks nans in fitted parameters to same effect.
+                    -- Also, yes it really is necessary to check all this.
+                    let nona = !(f64.isnan recresid_r) && rank == k
+                                                       && model.rank == k
+                    let check = !(nona && approx_equal model.params beta tol)
+                    -- Stop checking on all-nan ("empty") pixels.
+                    let check = check && !(all f64.isnan y_nn)
+                    -- TODO edit lm so that params are without nans?
+                    in (check, model.cov_params, nan_to_num 0 model.params,
+                        model.rank)
+                  in (check, X1, beta, rank, recresid_r)
+               ) X1s betas Xs_nn ys_nn ranks
+        let rets_r[r-k, :] = recresids_r
+        in (reduce_comm (||) false checks, r+1, X1s, betas, ranks, rets_r)
 
   let (_, _, retsT) =
     loop (X1s, betas, rets_r) = (X1s, betas, retsT) for r in (r'..<N) do
