@@ -166,24 +166,24 @@ entry mrecresid [m][N][k] (X: [N][k]f64) (ys: [m][N]f64) =
     let d = mvmul_filt x X1 x
     let fr = 1 + (dotprod_nan x d)
     let resid = y_nn[r] - dotprod_nan x beta
-    let recresid = resid / f64.sqrt(fr)
+    let recresid_r = resid / f64.sqrt(fr)
     -- Update formulas
     -- X1 = X1 - ddT/fr
     -- beta = beta + X1 x * resid
     let ddT = linalg.outer d d
     let X1 = map2 (map2 (\x y -> x - y/fr)) X1 ddT
     let beta = map2 (+) beta (map (dotprod_nan x >-> (*resid)) X1)
-    in (X1, beta, recresid)
+    in (X1, beta, recresid_r)
 
   -- Map is interchanged so that it is inside the sequential loop.
   let (_, r', X1s, betas, _, retsT) =
-    loop (check, r, X1rs, betars, ranks, retrs) = (true, k, X1s, betas, ranks, rets)
+    loop (check, r, X1s, betas, ranks, rets_r) = (true, k, X1s, betas, ranks, rets)
          while check && r < N - 1 do
-      let (checks, X1rs, betars, ranks, recresidrs) = unzip5 <|
-        map5 (\X1r betar X_nn y_nn rank ->
-                let (_, betar, recresidr) = loop_body r X1r betar X_nn y_nn
+      let (checks, X1s, betas, ranks, recresids_r) = unzip5 <|
+        map5 (\X1 beta X_nn y_nn rank ->
+                let (_, beta, recresid_r) = loop_body r X1 beta X_nn y_nn
                 -- Check numerical stability (rectify if unstable)
-                let (check, X1r, betar, rank) =
+                let (check, X1, beta, rank) =
                   -- We check update formula value against full OLS fit
                   let rp1 = r+1
                   -- NOTE We only need the transposed versions for the
@@ -195,23 +195,25 @@ entry mrecresid [m][N][k] (X: [N][k]f64) (ys: [m][N]f64) =
                   -- Check that this and previous fit is full rank.
                   -- R checks nans in fitted parameters to same effect.
                   -- Also, yes it really is necessary to check all this.
-                  let nona = !(f64.isnan recresidr) && rank == k
-                                                    && model.rank == k
-                  let check = !(nona && approx_equal model.params betar tol)
+                  let nona = !(f64.isnan recresid_r) && rank == k
+                                                     && model.rank == k
+                  let check = !(nona && approx_equal model.params beta tol)
                   -- Stop checking on all-nan ("empty") pixels.
                   let check = check && !(all f64.isnan y_nn)
-                  in (check, model.cov_params, nan_to_num 0 model.params, model.rank)
-                in (check, X1r, betar, rank, recresidr)
-             ) X1rs betars Xs_nn ys_nn ranks
-      let retrs[r-k, :] = recresidrs
-      in (reduce_comm (||) false checks, r+1, X1rs, betars, ranks, retrs)
+                  -- TODO edit lm so that params are without nans?
+                  in (check, model.cov_params, nan_to_num 0 model.params,
+                      model.rank)
+                in (check, X1, beta, rank, recresid_r)
+             ) X1s betas Xs_nn ys_nn ranks
+      let rets_r[r-k, :] = recresids_r
+      in (reduce_comm (||) false checks, r+1, X1s, betas, ranks, rets_r)
 
   let (_, _, retsT) =
-    loop (X1rs, betars, retrs) = (X1s, betas, retsT) for r in (r'..<N) do
-      let (X1rs, betars, recresidrs) =
-        unzip3 (map4 (loop_body r) X1rs betars Xs_nn ys_nn)
-      let retrs[r-k, :] = recresidrs
-      in (X1rs, betars, retrs)
+    loop (X1s, betas, rets_r) = (X1s, betas, retsT) for r in (r'..<N) do
+      let (X1s, betas, recresidrs) =
+        unzip3 (map4 (loop_body r) X1s betas Xs_nn ys_nn)
+      let rets_r[r-k, :] = recresidrs
+      in (X1s, betas, rets_r)
 
   let num_checks = r' - k -- debug output
   in (retsT, num_checks)
