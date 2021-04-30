@@ -30,10 +30,7 @@ for fname in glob("./data/*.in"):
     Xnn = X[~nan_inds]
     robjects.r.assign("y", y)
     robjects.r.assign("X", Xnn)
-    try:
-      py_res = recresid(Xnn, y)
-    except np.linalg.LinAlgError: # singular matrix, no one should fit this
-      continue
+    py_res = recresid(Xnn, y)
     R_res = np.array(R("recresid(X, y)"))
     if not np.allclose(py_res, R_res):
       print("python[:4], python[-1]:", py_res[:4], py_res[-1])
