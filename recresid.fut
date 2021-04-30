@@ -146,8 +146,9 @@ entry mrecresid [m][N][k] (X: [N][k]f64) (ys: [m][N]f64) =
            map (\i -> if i >= 0 then X[i, :] else replicate k f64.nan) indss_nn[j]
         ) (iota m)
 
-  -- Initialise recursion by fitting on first `k` observations.
+  -- I expect this to optimized away.
   let _sanity_check = map (\n -> assert (n > k) true) ns
+  -- Initialise recursion by fitting on first `k` observations.
   -- TODO: Fuse with Xs_nn loop above? `ys_nn` is same order as `indss_nn`.
   let (X1s, betas, ranks) =
     map2 (\X_nn y_nn ->
@@ -159,39 +160,45 @@ entry mrecresid [m][N][k] (X: [N][k]f64) (ys: [m][N]f64) =
   let rets = replicate (m*num_recresids_padded) 0
              |> unflatten num_recresids_padded m
 
+  let loop_body r X1 beta X_nn y_nn =
+    -- Compute recursive residual
+    let x = X_nn[r, :]
+    let d = mvmul_filt x X1 x
+    let fr = 1 + (dotprod_nan x d)
+    let resid = y_nn[r] - dotprod_nan x beta
+    let recresid = resid / f64.sqrt(fr)
+    -- Update formulas
+    -- X1 = X1 - ddT/fr
+    -- beta = beta + X1 x * resid
+    let ddT = linalg.outer d d
+    let X1 = map2 (map2 (\x y -> x - y/fr)) X1 ddT
+    let beta = map2 (+) beta (map (dotprod_nan x >-> (*resid)) X1)
+    in (X1, beta, recresid)
+
   -- Map is interchanged so that it is inside the sequential loop.
   let (_, r', X1s, betas, _, retsT) =
     loop (check, r, X1rs, betars, ranks, retrs) = (true, k, X1s, betas, ranks, rets)
          while check && r < N - 1 do
       let (checks, X1rs, betars, ranks, recresidrs) = unzip5 <|
         map5 (\X1r betar X_nn y_nn rank ->
-                -- Compute recursive residual
-                let x = X_nn[r, :]
-                let d = mvmul_filt x X1r x
-                let fr = 1 + (dotprod_nan x d)
-                let resid = y_nn[r] - dotprod_nan x betar
-                let recresidr = resid / f64.sqrt(fr)
-
-                -- Update formulas
-                let ddT = linalg.outer d d
-                -- X1r = X1r - ddT/fr
-                let X1r = map2 (map2 (\x y -> x - y/fr)) X1r ddT
-                -- beta = beta + X1 x * resid
-                let betar = map2 (+) betar (map (dotprod_nan x >-> (*resid)) X1r)
-
+                let (_, betar, recresidr) = loop_body r X1r betar X_nn y_nn
                 -- Check numerical stability (rectify if unstable)
                 let (check, X1r, betar, rank) =
                   -- We check update formula value against full OLS fit
                   let rp1 = r+1
-                  -- TODO dont do this transpose each time...
+                  -- NOTE We only need the transposed versions for the
+                  -- first few iterations; I think it is more efficient
+                  -- to transpose locally here because the matrix will
+                  -- most definitely fit entirely in scratchpad memory.
+                  -- Also we get to read from the array 1-strided.
                   let model = lm.fit (transpose X_nn[:rp1, :]) y_nn[:rp1]
                   -- Check that this and previous fit is full rank.
                   -- R checks nans in fitted parameters to same effect.
-                  -- Also, yes it is really necessary to check all this.
+                  -- Also, yes it really is necessary to check all this.
                   let nona = !(f64.isnan recresidr) && rank == k
                                                     && model.rank == k
                   let check = !(nona && approx_equal model.params betar tol)
-                  -- Stop checking on all-nan pixels.
+                  -- Stop checking on all-nan ("empty") pixels.
                   let check = check && !(all f64.isnan y_nn)
                   in (check, model.cov_params, nan_to_num 0 model.params, model.rank)
                 in (check, X1r, betar, rank, recresidr)
@@ -201,23 +208,8 @@ entry mrecresid [m][N][k] (X: [N][k]f64) (ys: [m][N]f64) =
 
   let (_, _, retsT) =
     loop (X1rs, betars, retrs) = (X1s, betas, retsT) for r in (r'..<N) do
-      let (X1rs, betars, recresidrs) = unzip3 <|
-        map4 (\X1r betar X_nn y_nn ->
-                -- Compute recursive residual
-                let x = X_nn[r, :]
-                let d = mvmul_filt x X1r x
-                let fr = 1 + (dotprod_nan x d)
-                let resid = y_nn[r] - dotprod_nan x betar
-                let recresidr = resid / f64.sqrt(fr)
-
-                -- Update formulas
-                let ddT = linalg.outer d d
-                -- X1r = X1r - ddT/fr
-                let X1r = map2 (map2 (\x y -> x - y/fr)) X1r ddT
-                -- beta = beta + X1 x * resid
-                let betar = map2 (+) betar (map (dotprod_nan x >-> (*resid)) X1r)
-                in (X1r, betar, recresidr)
-             ) X1rs betars Xs_nn ys_nn
+      let (X1rs, betars, recresidrs) =
+        unzip3 (map4 (loop_body r) X1rs betars Xs_nn ys_nn)
       let retrs[r-k, :] = recresidrs
       in (X1rs, betars, retrs)
 
