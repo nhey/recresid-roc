@@ -26,13 +26,11 @@ def validate(name, chunks, X, image, cache_dir=".cache"):
       num_recresids_padded = N-k
       py_res = np.empty((image_chunk.shape[0],num_recresids_padded))
       py_res.fill(np.nan)
-      py_len = []
       t_start = timer()
       for i, y in enumerate(image_chunk):
         nan_inds = np.isnan(y)
         ynn = y[~nan_inds]
         Xnn = X[~nan_inds]
-        py_len.append(len(ynn))
         # with np.errstate(invalid='raise'):
         #   try:
         #     res = recresid(Xnn, ynn)
