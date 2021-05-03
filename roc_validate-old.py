@@ -24,7 +24,7 @@ nan_inds = np.isnan(y)
 y = y[~nan_inds]
 X = X[~nan_inds]
 py_res = history_roc(X.T, y, alpha, conf)
-ocl_res = roc_fut.history_roc(1, alpha, conf, X.T, y)
+ocl_res = roc_fut.history_roc(alpha, conf, X.T, y)
 
 print("python:", py_res)
 print("opencl:", ocl_res)
@@ -35,15 +35,20 @@ for fname in glob("./data/*.in"):
   print("... ", fname)
   Xt, image = load_fut_data(fname)
   X = Xt.T
+  if image.shape[0] > 500:
+    print("Large image. Skipping because it would be very slow.")
+    continue
+  ok = True
   for y in image:
     nan_inds = np.isnan(y)
     ynn = y[~nan_inds]
     Xnn = X[~nan_inds]
     py_res = history_roc_debug(Xnn.T, ynn, alpha, conf)
-    # NOTE: currently only handling non-nan input
-    ocl_res = roc_fut.history_roc(1, alpha, conf, Xnn.T, ynn)
-    print("python:", py_res[:2])
-    print("opencl:", ocl_res)
+    ocl_res = roc_fut.history_roc(alpha, conf, Xnn.T, ynn)
+    ok = ok and ocl_res[0] == py_res[0] and ocl_res[1] == py_res[1]
+    # print("python:", py_res[:2])
+    # print("opencl:", ocl_res)
+  print(ok)
 
 # def validate(num_tests, bsz):
 #   ok = True
