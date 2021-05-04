@@ -7,7 +7,7 @@ from recresid_pyopencl import recresid_pyopencl
 
 recresid_fut = recresid_pyopencl()
 
-def validate(name, chunks, X, image, cache_dir=".cache"):
+def validate(name, chunks, X, image, cache_dir=".cache/recresid"):
   print("image size", image.shape)
   print("regressor matrix", X.shape)
   k = X.shape[1]
@@ -46,7 +46,7 @@ def validate(name, chunks, X, image, cache_dir=".cache"):
 
     print("Computing opencl results...", end="")
     t_start = timer()
-    ocl_resT, num_checks = recresid_fut.mrecresid(X, image_chunk)
+    ocl_resT, num_checks, _ = recresid_fut.mrecresid(X, image_chunk)
     t_stop = timer()
     ocl_res = ocl_resT.get().T
     print(timedelta(seconds=t_stop-t_start))
