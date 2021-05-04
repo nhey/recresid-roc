@@ -21,8 +21,7 @@ def validate(name, chunks, X, image, cache_dir=".cache/roc"):
     if not os.path.isdir(cache_dir):
       os.makedirs(cache_dir)
     py_res_file = "{}/{}.chunk{}.npy".format(cache_dir, name, i)
-    print("NOT USING CACHED VALUES!")
-    if False and os.path.exists(py_res_file):
+    if os.path.exists(py_res_file):
       with open(py_res_file, "rb") as f:
         py_res = np.load(f)
       print("loaded from", py_res_file)
