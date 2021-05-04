@@ -131,25 +131,11 @@ let filterPadWithKeys [n] 't
 
 let filter_nan_pad = filterPadWithKeys ((!) <-< f64.isnan) f64.nan
 
--- Map-distributed `recresid`. There may be nan values in `ys`.
-entry mrecresid [m][N][k] (X: [N][k]f64) (ys: [m][N]f64) =
+-- Map-distributed `recresid`.
+entry mrecresid_nn [m][N][k] (Xs_nn: [m][N][k]f64) (ys_nn: [m][N]f64) =
   let tol = f64.sqrt(f64.epsilon) / (f64.i64 k)
 
-  -- NOTE: the following could probably be replaced by an if-statement in
-  -- the loop, which might be desirable if the loop body is fully sequentialized.
-  --
-  -- Rearrange `ys` so that valid values come before nans.
-  let (ns, ys_nn, indss_nn) = unzip3 (map filter_nan_pad ys)
-  -- Repeat this for `X`.
-  let Xs_nn: *[m][N][k]f64 =
-    map (\j ->
-           map (\i -> if i >= 0 then X[i, :] else replicate k f64.nan) indss_nn[j]
-        ) (iota m)
-
-  -- I expect this to optimized away.
-  let _sanity_check = map (\n -> assert (n > k) true) ns
   -- Initialise recursion by fitting on first `k` observations.
-  -- TODO: Fuse with Xs_nn loop above? `ys_nn` is same order as `indss_nn`.
   let (X1s, betas, ranks) =
     map2 (\X_nn y_nn ->
             let model = lm.fit (transpose X_nn[:k, :]) y_nn[:k]
@@ -217,5 +203,23 @@ entry mrecresid [m][N][k] (X: [N][k]f64) (ys: [m][N]f64) =
 
   let num_checks = r' - k -- debug output
   in (retsT, num_checks)
+
+-- Map-distributed `recresid`. There may be nan values in `ys`.
+entry mrecresid [m][N][k] (X: [N][k]f64) (ys: [m][N]f64) =
+  -- NOTE: the following could probably be replaced by an if-statement in
+  -- the loop, which might be desirable if the loop body is fully sequentialized.
+  --
+  -- Rearrange `ys` so that valid values come before nans.
+  let (ns, ys_nn, indss_nn) = unzip3 (map filter_nan_pad ys)
+  -- Repeat this for `X`.
+  let Xs_nn: *[m][N][k]f64 =
+    map (\j ->
+           map (\i -> if i >= 0 then X[i, :] else replicate k f64.nan) indss_nn[j]
+        ) (iota m)
+
+  -- I expect this to optimized away.
+  let _sanity_check = map (\n -> assert (n > k) true) ns
+  let (retsT, num_checks) = mrecresid_nn Xs_nn ys_nn
+  in (retsT, num_checks, ns)
 
 entry mrecresid1 X' y = (mrecresid (transpose X') y).0 |> transpose
