@@ -6,7 +6,7 @@ clean:
 	rm -rf __pycache__
 
 
-pyopencl_libs=recresid_pyopencl.py roc_pyopencl.py
+pyopencl_libs=recresid_pyopencl.py roc_pyopencl.py mroc_pyopencl.py
 $(pyopencl_libs): %_pyopencl.py: %.fut
 	futhark pyopencl --library -o $*_pyopencl $<
 
@@ -21,3 +21,7 @@ $(R):
 data_recresid = rand_recresid realworld_recresid
 $(data_recresid): %_recresid: recresid_pyopencl.py
 	python recresid_validate_$*.py
+
+data_roc = rand_roc realworld_roc
+$(data_roc): %_roc: mroc_pyopencl.py
+	python roc_validate_$*.py

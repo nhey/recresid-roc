@@ -38,6 +38,7 @@ def sctest(process):
     return _pval_brownian_motion_max(stat)
 
 def history_roc(X, y, alpha, confidence):
+  if y.shape[0] == 0: return 0
   X_rev = np.flip(X, axis=1)
   y_rev = y[::-1]
   rcus = efp(X_rev, y_rev)

@@ -73,10 +73,12 @@ let boundary confidence N nm1: [N]f64 =
                 else f64.nan
          ) (iota N)
 
+-- TODO handle all nan input
+-- TODO fuse maps around inner sizes
 entry mhistory_roc [m][N][k] level confidence
-                             (X: [N][k]f64) (ys: [m][N]f64): [m](i64, bool) =
+                             (X: [N][k]f64) (ys: [m][N]f64) =
   let (rocs, nns) = rcusum (reverse X) (map reverse ys)
-  -- TODO fuse pval and bounds and ind (atleast bounds and ind)
+  -- TODO fuse pval and bounds and ind, if same inner sizes
   let pvals = map2 sctest rocs nns
   let n = N - k + 1 |> trace
   let bounds = map (boundary confidence n) nns |> trace
@@ -94,11 +96,13 @@ entry mhistory_roc [m][N][k] level confidence
                |> reduce_comm i64.min i64.highest
          ) rocs bounds
   in map3 (\ind nn pval ->
+            -- TODO futhark pval is true more often than python!
             -- only consider this index if it is statistically signifcant
             let chk = !(f64.isnan pval) && pval < level && ind != i64.highest 
             let y_start = if chk then nn - ind else 0
-            in (y_start, chk)
+            in (y_start, chk, pval)
           ) inds nns pvals
+     |> unzip3
 
 -- For the repl,
 let level = 0.05f64
