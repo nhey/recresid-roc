@@ -16,7 +16,6 @@ def efp(X, y):
   # Recursive CUSUM process
   k, n = X.shape
   w  = recresid(X.T, y)
-  assert(not np.any(np.isnan(w)))
   sigma = np.std(w, ddof=1) # division by `N-1` to match R's `sd` function.
   process = np.cumsum(np.append([0],w))/(sigma*np.sqrt(n-k))
   return process

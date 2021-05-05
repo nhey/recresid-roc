@@ -46,8 +46,8 @@ def validate(name, chunks, X, image, cache_dir=".cache/roc"):
     ocl_res = ocl_res.get()
     print(timedelta(seconds=t_stop-t_start))
 
-    check = np.allclose(py_res, ocl_res, equal_nan=True)
-    print("np.allclose (rtol=1e-5, atol=1e-8):", end="")
+    check = np.all(py_res == ocl_res)
+    print("all equal:", end="")
     if check:
       print("\033[92m PASSED \033[0m")
     else:
