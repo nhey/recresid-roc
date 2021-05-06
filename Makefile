@@ -22,6 +22,5 @@ data_recresid = rand_recresid realworld_recresid
 $(data_recresid): %_recresid: recresid_pyopencl.py
 	python recresid_validate_$*.py
 
-data_roc = rand_roc realworld_roc
-$(data_roc): %_roc: mroc_pyopencl.py
-	python roc_validate_$*.py
+validate_roc: mroc_pyopencl.py
+	python roc_validate_data.py
