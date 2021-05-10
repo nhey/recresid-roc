@@ -1,12 +1,10 @@
 import "lib/github.com/diku-dk/linalg/linalg"
-import "lib/github.com/nhey/ols/ols"
 import "lm/lm"
 
 import "lm/linpack"
 module linpack = linpack_d
 
 module linalg = mk_linalg f64
-module ols = mk_ols f64
 module lm = lm_f64
 
 let nonans xs: bool =

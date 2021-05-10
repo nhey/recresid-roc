@@ -1,4 +1,3 @@
 require {
-  github.com/nhey/ols 0.0.1 #56276af8abe7f1ec2c8084f994f889d421370962
   github.com/diku-dk/statistics 0.2.1 #ad49c009c7fb5d3059d4edca65d0e0f6b145da05
 }
