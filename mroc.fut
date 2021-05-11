@@ -109,8 +109,6 @@ entry mhistory_roc [m][N][k] level confidence
                |> reduce_comm i64.min i64.highest
          ) rocs bounds
   in map3 (\ind nn pval ->
-            -- TODO futhark pval is true more often than python!
-            -- only consider this index if it is statistically signifcant
             let chk = !(f64.isnan pval) && pval < level && ind != i64.highest 
             let y_start = if chk then nn - ind else 0
             in (y_start, chk, pval)
