@@ -219,5 +219,3 @@ entry mrecresid [m][N][k] (X: [N][k]f64) (ys: [m][N]f64) =
   let _sanity_check = map (\n -> assert (n > k) true) ns
   let (retsT, num_checks) = mrecresid_nn Xs_nn ys_nn
   in (retsT, num_checks, ns)
-
-entry mrecresid1 X' y = (mrecresid (transpose X') y).0 |> transpose
