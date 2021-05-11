@@ -39,11 +39,11 @@ let sample_sd_nan [m] (xs: [m]f64) (num_non_nan: i64) =
 -- the prepended zero for each `y` in `ys`.
 let rcusum [m][N][k] (X: [N][k]f64) (ys: [m][N]f64) =
   -- TODO use mrecresid_nn and propage Xs_nn ys_nn outwards
-  let (w's, _, ns) = mrecresid X ys
-  let ws = transpose w's |> trace
+  let (wTs, _, ns) = mrecresid X ys
+  let ws = transpose wTs
   let ns = map (\n -> n - k) ns
   -- compute sample sd, ignoring nans
-  let sample_sds = map2 sample_sd_nan ws ns |> trace
+  let sample_sds = map2 sample_sd_nan ws ns
   -- Standardize and insert 0 in front.
   let n = N-k+1
   let standardized =
@@ -93,8 +93,8 @@ entry mhistory_roc [m][N][k] level confidence
   let (rocs, nns) = rcusum (reverse X) (map reverse ys)
   -- TODO fuse pval and bounds and ind, if same inner sizes
   let pvals = map2 sctest rocs nns
-  let n = N - k + 1 |> trace
-  let bounds = map (boundary confidence n) nns |> trace
+  let n = N - k + 1
+  let bounds = map (boundary confidence n) nns
   -- index of first time roc crosses the boundary
   let inds =
     map2 (\roc bound ->
