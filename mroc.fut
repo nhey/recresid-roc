@@ -88,6 +88,7 @@ let boundary confidence N nm1: [N]f64 =
 
 -- TODO handle all nan input
 -- TODO fuse maps around inner sizes
+-- Map distributed stable history computation.
 entry mhistory_roc [m][N][k] level confidence
                              (X: [N][k]f64) (ys: [m][N]f64) =
   let (rocs, nns) = rcusum (reverse X) (map reverse ys)
@@ -111,6 +112,5 @@ entry mhistory_roc [m][N][k] level confidence
   in map3 (\ind nn pval ->
             let chk = !(f64.isnan pval) && pval < level && ind != i64.highest 
             let y_start = if chk then nn - ind else 0
-            in (y_start, chk, pval)
+            in y_start
           ) inds nns pvals
-     |> unzip3

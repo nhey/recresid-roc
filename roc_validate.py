@@ -41,7 +41,7 @@ def validate(name, chunks, X, image, cache_dir=".cache/roc"):
 
     print("Computing opencl results...", end="")
     t_start = timer()
-    ocl_res, checks, pvals = ocl.mhistory_roc(alpha, conf, X, image_chunk)
+    ocl_res = ocl.mhistory_roc(alpha, conf, X, image_chunk)
     t_stop = timer()
     ocl_res = ocl_res.get()
     print(timedelta(seconds=t_stop-t_start))
