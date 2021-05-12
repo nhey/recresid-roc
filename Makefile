@@ -24,3 +24,5 @@ $(data_recresid): %_recresid: recresid_pyopencl.py
 
 validate_roc: mroc_pyopencl.py
 	python roc_validate_data.py
+
+validate_recresid: realworld_recresid rand_recresid
