@@ -3,10 +3,10 @@ let
     "https://github.com/NixOS/nixpkgs/archive/df8e3bd110921621d175fad88c9e67909b7cb3d3.tar.gz"
   ) {};
 
-  futhark-version = "v0.19.3";
+  futhark-rev = "6df5074681d548d72c5d1bb267a69ca5cab1ff94";
   futhark-src = pkgs.applyPatches {
     name = "futhark-patched";
-    src = (fetchTarball "https://github.com/diku-dk/futhark/archive/${futhark-version}.tar.gz");
+    src = (fetchTarball "https://github.com/diku-dk/futhark/archive/${futhark-rev}.tar.gz");
     patches = [ ./futhark.patch ];
   };
   futhark-pinned = pkgs.haskellPackages.callPackage futhark-src { suffix = "nightly"; };
@@ -67,6 +67,20 @@ let
     strucchangeRcpp
     bfast2
   ];
+
+  futhark-data = unstable.python38Packages.buildPythonPackage {
+    name = "futhark-data";
+    version = "1.0";
+    src = unstable.fetchFromGitHub {
+      repo = "python-futhark-data";
+      owner = "diku-dk";
+      rev = "9a108a1530f3e8798c34c6266bdbed63830214ae";
+      sha256 = "1x9x2d6sb45x8a5aiqfa8qylhlhszidvpxha5k69dby78zxx8ndc";
+    };
+    propagatedBuildInputs = with unstable.python3Packages; [
+      numpy
+    ];
+  };
 in
 pkgs.stdenv.mkDerivation {
   name = "shell";
@@ -81,6 +95,7 @@ pkgs.stdenv.mkDerivation {
       numpy
       pyopencl
       statsmodels
+      futhark-data
     ]))
   ];
 } 

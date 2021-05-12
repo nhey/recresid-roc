@@ -1,68 +1,82 @@
-import statsmodels.api as sm
+import os
+from datetime import timedelta
+from timeit import default_timer as timer
 import numpy as np
-from load_dataset import load_fut_data
 from python.recresid import recresid
 from recresid_pyopencl import recresid_pyopencl
 
 recresid_fut = recresid_pyopencl()
 
-duncan_prestige = sm.datasets.get_rdataset("Duncan", "carData")
-Y = duncan_prestige.data['income']
-X = duncan_prestige.data['education']
-X = sm.add_constant(X)
-# Note: the copy is really important here.
-# GPU results are garbage without it.
-X, y = np.array(X, dtype=np.float64).copy(), np.array(Y, dtype=np.float64).copy()
+def validate(name, chunks, X, image, cache_dir=".cache/recresid"):
+  print("image size", image.shape)
+  print("regressor matrix", X.shape)
+  k = X.shape[1]
+  m, N = image.shape
+  for i, image_chunk in enumerate(np.array_split(image, chunks)):
+    print("~~ chunk {} ({}/{})".format(image_chunk.shape, i+1, chunks))
+    print("Computing python results...", end="")
+    if not os.path.isdir(cache_dir):
+      os.makedirs(cache_dir)
+    py_res_file = "{}/{}.chunk{}.npy".format(cache_dir, name, i)
+    if os.path.exists(py_res_file):
+      with open(py_res_file, "rb") as f:
+        py_res = np.load(f)
+      print("loaded from", py_res_file)
+    else:
+      num_recresids_padded = N-k
+      py_res = np.empty((image_chunk.shape[0],num_recresids_padded))
+      py_res.fill(np.nan)
+      t_start = timer()
+      for i, y in enumerate(image_chunk):
+        nan_inds = np.isnan(y)
+        ynn = y[~nan_inds]
+        Xnn = X[~nan_inds]
+        # with np.errstate(invalid='raise'):
+        #   try:
+        #     res = recresid(Xnn, ynn)
+        #   except:
+        #     print("at chunk pixel", i)
+        res = recresid(Xnn, ynn)
+        if res.size > 0:
+          py_res[i,:res.size] = res
+      t_stop = timer()
+      print(timedelta(seconds=t_stop-t_start))
+      with open(py_res_file, "wb") as f:
+        np.save(f, py_res)
 
-py_res = recresid(X, y)
-ocl_res = recresid_fut.recresid(2, X, y)
+    print("Computing opencl results...", end="")
+    t_start = timer()
+    ocl_resT, num_checks, _ = recresid_fut.mrecresid(X, image_chunk)
+    t_stop = timer()
+    ocl_res = ocl_resT.get().T
+    print(timedelta(seconds=t_stop-t_start))
 
-print("Validating statsmodels example")
-print("python:", py_res)
-print("opencl:", ocl_res.get())
-print("allclose:", np.allclose(py_res, ocl_res.get()))
+    check = np.allclose(py_res, ocl_res, equal_nan=True)
+    print("np.allclose (rtol=1e-5, atol=1e-8):", end="")
+    if check:
+      print("\033[92m PASSED \033[0m")
+    else:
+      print("\033[91m FAILED \033[0m")
+      inds = np.where(~np.isclose(py_res, ocl_res, equal_nan=True))
+      print("(chunk pixel index in image, failed time series index)")
+      print(inds)
+      print("First offending pixel")
+      print(image_chunk[inds[0][0]])
+      print("Recursive reisdual values that differ" \
+            "(not necessarily from same pixel")
+      print("Python", py_res[inds])
+      print("Futhark", ocl_res[inds])
 
-def validate(num_tests, bsz):
-  ok = True
-  for i in range(num_tests):
-    X = np.random.rand(100,8).astype(np.float64)
-    y = np.random.rand(100,1).astype(np.float64)
-    py_res = recresid(X, y)
-    ocl_res = recresid_fut.recresid(2, X, y)
+    print("Number of stability checks:", num_checks)
 
-    ok = ok and np.allclose(py_res, ocl_res.get())
-    if not ok:
-      print("python", py_res)
-      print("opencl", ocl_res)
-      break
-  return ok
+    print("Relative absolute error")
+    rel_err = np.abs((py_res - ocl_res)/py_res)
+    rel_err = rel_err[~np.isnan(rel_err)]
+    per_err = rel_err * 100
+    print("Max error  {:10.5e} ({:.4f}%)".format(np.max(rel_err),
+                                                 np.max(per_err)))
+    print("Min error  {:10.5e} ({:.4f}%)".format(np.min(rel_err),
+                                                 np.min(per_err)))
+    print("Mean error {:10.5e} ({:.4f}%)".format(np.mean(rel_err),
+                                                 np.mean(per_err)))
 
-# runs = 100
-# print("\nValidating {} random runs block size 1...".format(runs))
-# print(validate(runs, 1))
-# print("Validating {} random runs block size 2...".format(runs))
-# print(validate(runs, 2))
-# print("Validating {} random runs block size 4...".format(runs))
-# print(validate(runs, 4))
-
-from glob import glob
-print("Validating data sets in ./data.")
-for fname in glob("./data/*.in"):
-  print("... ", fname)
-  Xt, image = load_fut_data(fname)
-  X = Xt.T
-  ok = True
-  for y in image:
-    nan_inds = np.isnan(y)
-    ynn = y[~nan_inds]
-    Xnn = X[~nan_inds]
-    py_res = recresid(Xnn, ynn)
-    # NOTE: currently only handling non-nan input
-    ocl_res = recresid_fut.recresid(1, Xnn, ynn)
-
-    ok = ok and np.allclose(py_res, ocl_res.get())
-    if not ok:
-      print("python", py_res)
-      print("opencl", ocl_res)
-      break
-  print(ok)

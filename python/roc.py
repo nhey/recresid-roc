@@ -16,7 +16,6 @@ def efp(X, y):
   # Recursive CUSUM process
   k, n = X.shape
   w  = recresid(X.T, y)
-  assert(not np.any(np.isnan(w)))
   sigma = np.std(w, ddof=1) # division by `N-1` to match R's `sd` function.
   process = np.cumsum(np.append([0],w))/(sigma*np.sqrt(n-k))
   return process
@@ -38,6 +37,7 @@ def sctest(process):
     return _pval_brownian_motion_max(stat)
 
 def history_roc(X, y, alpha, confidence):
+  if y.shape[0] == 0: return 0
   X_rev = np.flip(X, axis=1)
   y_rev = y[::-1]
   rcus = efp(X_rev, y_rev)
@@ -63,4 +63,4 @@ def history_roc_debug(X, y, alpha, confidence):
       inds = (np.abs(rcus[1:]) > bounds[1:]).nonzero()[0]
       y_start = rcus.size - np.min(inds) - 1 if inds.size > 0 else 0
       pval_pass = True
-  return y_start, pval_pass
+  return y_start, pval_pass, rcus

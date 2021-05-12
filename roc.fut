@@ -13,8 +13,8 @@ module stats = mk_statistics f64
 --   in f64.sqrt(sumdiffs/(nf64-1))
 
 -- Empircal fluctuation process containing recursive residuals.
-let rcusum [n][k] (bsz: i64) (X: [k][n]f64) (y: [n]f64) =
-  let w = recresid bsz (transpose X) y
+let rcusum [n][k] (X': [k][n]f64) (y: [n]f64) =
+  let (w, _) = recresid X' y
   let m = length w
   let s = stats.stddev w
   let fr = s * f64.sqrt(f64.i64 (n-k))
@@ -43,9 +43,9 @@ let boundary n confidence: [n]f64 =
   let div = f64.i64 n - 1
   in map (\i -> confidence + (2*confidence*(f64.i64 i))/div) (iota n)
 
-entry history_roc [n][k] bsz level confidence (X: [k][n]f64) (y: [n]f64) =
+entry history_roc [n][k] level confidence (X: [k][n]f64) (y: [n]f64) =
   let m = n - k + 1
-  let roc = rcusum bsz (map reverse X) y[::-1] :> [m]f64
+  let roc = rcusum (map reverse X) y[::-1] :> [m]f64
   let pval = sctest roc
   let bounds = boundary m confidence
   -- index of first time roc crosses the boundary
@@ -63,4 +63,4 @@ let conf = 0.9478989165152716f64
 let X = [[1.0f64,86.0f64],[1.0f64,76.0f64],[1.0f64,92.0f64],[1.0f64,90.0f64],[1.0f64,86.0f64],[1.0f64,84.0f64],[1.0f64,93.0f64],[1.0f64,100.0f64],[1.0f64,87.0f64],[1.0f64,86.0f64],[1.0f64,74.0f64],[1.0f64,98.0f64],[1.0f64,97.0f64],[1.0f64,84.0f64],[1.0f64,91.0f64],[1.0f64,34.0f64],[1.0f64,45.0f64],[1.0f64,56.0f64],[1.0f64,44.0f64],[1.0f64,82.0f64],[1.0f64,72.0f64],[1.0f64,55.0f64],[1.0f64,71.0f64],[1.0f64,50.0f64],[1.0f64,23.0f64],[1.0f64,39.0f64],[1.0f64,28.0f64],[1.0f64,32.0f64],[1.0f64,22.0f64],[1.0f64,25.0f64],[1.0f64,29.0f64],[1.0f64,7.0f64],[1.0f64,26.0f64],[1.0f64,19.0f64],[1.0f64,15.0f64],[1.0f64,20.0f64],[1.0f64,26.0f64],[1.0f64,28.0f64],[1.0f64,17.0f64],[1.0f64,22.0f64],[1.0f64,30.0f64],[1.0f64,25.0f64],[1.0f64,20.0f64],[1.0f64,47.0f64],[1.0f64,32.0f64]]
 let Xt = transpose X
 let y = [62.0f64, 72.0f64, f64.nan, 55.0f64, 64.0f64, f64.nan, 64.0f64, 80.0f64, 67.0f64, 72.0f64, 42.0f64, 76.0f64, 76.0f64, 41.0f64, 48.0f64, 76.0f64, 53.0f64, 60.0f64, 42.0f64, 78.0f64, 29.0f64, 48.0f64, 55.0f64, 29.0f64, 21.0f64, 47.0f64, 81.0f64, 36.0f64, 22.0f64, 44.0f64, 15.0f64,  7.0f64, 42.0f64,  9.0f64, 21.0f64, 21.0f64, 16.0f64, 16.0f64,  9.0f64, 14.0f64, 12.0f64, 17.0f64,  7.0f64, 34.0f64,  8.0f64]
-let test = history_roc 1 level conf Xt y
+let test = history_roc level conf Xt y

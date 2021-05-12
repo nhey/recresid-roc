@@ -10,10 +10,14 @@ gen-data.out: gen-data.fut
 	futhark c -o $@ $<
 	rm $@.c
 
+mkBinInput.out: mkBinInput.fut
+	futhark c -o $@ $<
+	rm $@.c
+
 clean:
 	rm -f *.out *.in
 
-datasets = d-10-100-50.in d-10-200-60.in
+datasets = d-2-20-10.in d-10-100-50.in d-10-200-60.in d-50-500-100.in d-100-100-50.in d-5000-100-50.in
 
 $(datasets): %.in: gen-data.out
 	echo "$@" | sed -e "s/[d|.in]//g"  \
@@ -21,3 +25,18 @@ $(datasets): %.in: gen-data.out
 	          | sed -e "s/-/ /g" \
 	          | sed -e "s/$$/ 0.25/" \
 	          | ./gen-data.out > $@
+
+realdata = real/sahara.in real/peru.in real/africa.in
+$(realdata): real/%.in: mkBinInput.out
+	mkdir -p real
+	gzip -d --keep $*/$*.in.gz
+	./mkBinInput.out --binary-output < $*/$*.in > $@
+	rm $*/*.in
+
+# N=67968, k2p2 = 8, freq = 12
+sahara/X.in: gen-data.out
+	echo "67968 8 12" | ./gen-data.out --entry=mkX_simple > $@
+
+sahara/sahara.in: mkBinInput.out
+	gzip -dk sahara/sahara.in.gz
+	./mkBinInput.out --binary-output < sahara/sahara.in > $@

@@ -5,13 +5,24 @@ clean:
 	rm -f *.out *.out.c *_pyopencl.py
 	rm -rf __pycache__
 
+
+pyopencl_libs=recresid_pyopencl.py roc_pyopencl.py mroc_pyopencl.py
+$(pyopencl_libs): %_pyopencl.py: %.fut
+	futhark pyopencl --library -o $*_pyopencl $<
+
 objs = recresid_validate roc_validate
-
-%_pyopencl: %.fut
-	futhark pyopencl --library -o $@ $<
-
-$(objs): %_validate: %_pyopencl
+$(objs): %_validate: %_pyopencl.py
 	python $@.py
 
-R_validate:
-	nix-shell r-shell.nix --run "python R_validate.py"
+R = R_recresid_validate R_roc_validate
+$(R):
+	nix-shell r-shell.nix --run "python $@.py"
+
+data_recresid = rand_recresid realworld_recresid
+$(data_recresid): %_recresid: recresid_pyopencl.py
+	python recresid_validate_$*.py
+
+validate_roc: mroc_pyopencl.py
+	python roc_validate_data.py
+
+validate_recresid: realworld_recresid rand_recresid

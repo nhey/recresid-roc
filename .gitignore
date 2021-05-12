@@ -1,7 +1,10 @@
 lib/
 __pycache__/
+*.npy
 *.out
 *_pyopencl.py
 data/*.in
+data/real/
+todo.md
 .RData
 .Rhistory
