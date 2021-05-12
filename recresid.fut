@@ -1,8 +1,5 @@
 import "lib/github.com/diku-dk/linalg/linalg"
-import "lm/lm"
-
-import "lm/linpack"
-module linpack = linpack_d
+import "lib/github.com/nhey/lm/lm"
 
 module linalg = mk_linalg f64
 module lm = lm_f64
