@@ -56,6 +56,9 @@ let rcusum [m][N][k] (X: [N][k]f64) (ys: [m][N]f64) =
 let std_normal_cdf =
   stats.cdf (stats.mk_normal {mu=0f64, sigma=1f64})
 
+-- TODO this may be done cheaper for x < 0.3; see
+--      R strucchange `pvalue.efp`.
+--      Also not saving intermediate results.
 let pval_brownian_motion_max (x: f64): f64 =
   -- Q is complementary CDF of N(0,1)
   let Q = \y -> 1 - std_normal_cdf y
@@ -79,7 +82,7 @@ let sctest [n] (process: [n]f64) (num_non_nan: i64) : f64 =
 -- `nm1` is number of non-nan values excluding inital zero.
 let boundary confidence N nm1: [N]f64 =
   let n = nm1 + 1
-  -- 2*(1 + conf*t) with t in [0,1].
+  -- conf*(1 + 2*t) with t in [0,1].
   let div = f64.i64 n - 1
   in map (\i -> if i < n
                 then confidence + (2*confidence*(f64.i64 i))/div
@@ -110,7 +113,7 @@ entry mhistory_roc [m][N][k] level confidence
                |> reduce_comm i64.min i64.highest
          ) rocs bounds
   in map3 (\ind nn pval ->
-            let chk = !(f64.isnan pval) && pval < level && ind != i64.highest 
+            let chk = !(f64.isnan pval) && pval < level && ind != i64.highest
             let y_start = if chk then nn - ind else 0
             in y_start
           ) inds nns pvals
