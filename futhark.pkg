@@ -1,4 +1,4 @@
 require {
   github.com/diku-dk/statistics 0.2.1 #ad49c009c7fb5d3059d4edca65d0e0f6b145da05
-  github.com/nhey/lm 0.0.1 #bab305a78d21a5172aec02e856e66aa2405947a9
+  github.com/nhey/lm 0.0.2 #6822c08ceec209a06cf0fbfb847046ae406f63a6
 }
