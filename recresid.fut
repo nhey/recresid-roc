@@ -7,9 +7,6 @@ module lm = lm_f64
 let nonans xs: bool =
   !(any f64.isnan xs)
 
-let nan_to_num [n] (num: f64) (xs: [n]f64): [n]f64 =
-  map (\x -> if f64.isnan x then num else x) xs
-
 let mean_abs [n] (xs: [n]f64) =
   (reduce (+) 0 (map f64.abs xs)) / (f64.i64 n)
 
@@ -50,7 +47,7 @@ entry recresid [n][k] (X': [k][n]f64) (y: [n]f64) =
   -- Initialize recursion
   let model = lm.fit X'[:, :k] y[:k]
   let X1: [k][k]f64 = model.cov_params -- (X.T X)^(-1)
-  let beta: [k]f64 = nan_to_num 0 model.params
+  let beta: [k]f64 = model.params
 
   let loop_body r X1r betar =
     -- Compute recursive residual
@@ -84,7 +81,7 @@ entry recresid [n][k] (X': [k][n]f64) (y: [n]f64) =
           let nona = !(f64.isnan recresidr) && rank == k
                                             && model.rank == k
           let check = !(nona && approx_equal model.params betar tol)
-          in (check, model.cov_params, nan_to_num 0 model.params, model.rank)
+          in (check, model.cov_params, model.params, model.rank)
        else (check, X1r, betar, rank)
       in (check, r+1, X1r, betar, rank, retr)
 
@@ -134,7 +131,7 @@ entry mrecresid_nn [m][N][k] (Xs_nn: [m][N][k]f64) (ys_nn: [m][N]f64) =
   let (X1s, betas, ranks) =
     map2 (\X_nn y_nn ->
             let model = lm.fit (transpose X_nn[:k, :]) y_nn[:k]
-            in (model.cov_params, nan_to_num 0 model.params, model.rank)
+            in (model.cov_params, model.params, model.rank)
          ) Xs_nn ys_nn |> unzip3
 
   let num_recresids_padded = N - k
@@ -181,9 +178,7 @@ entry mrecresid_nn [m][N][k] (Xs_nn: [m][N][k]f64) (ys_nn: [m][N]f64) =
                     let check = !(nona && approx_equal model.params beta tol)
                     -- Stop checking on all-nan ("empty") pixels.
                     let check = check && !(all f64.isnan y_nn)
-                    -- TODO edit lm so that params are without nans?
-                    in (check, model.cov_params, nan_to_num 0 model.params,
-                        model.rank)
+                    in (check, model.cov_params, model.params, model.rank)
                   in (check, X1, beta, rank, recresid_r)
                ) X1s betas Xs_nn ys_nn ranks
         let rets_r[r-k, :] = recresids_r
