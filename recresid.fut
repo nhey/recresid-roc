@@ -141,16 +141,15 @@ entry mrecresid_nn [m][N][k] (Xs_nn: [m][N][k]f64) (ys_nn: [m][N]f64) =
   let loop_body r X1 beta X_nn y_nn =
     -- Compute recursive residual
     let x = X_nn[r, :]
-    let d = mvmul_filt x X1 x
-    let fr = 1 + (dotprod_nan x d)
-    let resid = y_nn[r] - dotprod_nan x beta
+    let d = linalg.matvecmul_row X1 x
+    let fr = 1 + (linalg.dotprod x d)
+    let resid = y_nn[r] - linalg.dotprod x beta
     let recresid_r = resid / f64.sqrt(fr)
     -- Update formulas
     -- X1 = X1 - ddT/fr
     -- beta = beta + X1 x * resid
-    let ddT = linalg.outer d d
-    let X1 = map2 (map2 (\x y -> x - y/fr)) X1 ddT
-    let beta = map2 (+) beta (map (dotprod_nan x >-> (*resid)) X1)
+    let X1 = map2 (\d1 -> map2 (\d2 x -> x - (d1*d2)/fr) d) d X1
+    let beta = map2 (+) beta (map (linalg.dotprod x >-> (*resid)) X1)
     in (X1, beta, recresid_r)
 
   -- Map is interchanged so that it is inside the sequential loop.
