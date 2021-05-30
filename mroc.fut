@@ -91,11 +91,58 @@ let boundary confidence N nm1: [N]f64 =
 -- TODO handle all nan input
 -- TODO fuse maps around inner sizes
 -- Map distributed stable history computation.
+-- entry mhistory_roc [m][N][k] level confidence
+--                              (X: [N][k]f64) (ys: [m][N]f64) =
+--   let (rocs, nns) = rcusum (reverse X) (map reverse ys)
+--   -- TODO fuse pval and bounds and ind, if same inner sizes
+--   let pvals = map2 sctest rocs nns
+--   let n = N - k + 1
+--   let bounds = map (boundary confidence n) nns
+--   -- index of first time roc crosses the boundary
+--   let inds =
+--     map2 (\roc bound ->
+--             let nm1 = n - 1
+--             let roc = roc[1:] :> [nm1]f64
+--             let bound = bound[1:] :> [nm1]f64
+--             in map3 (\i r b ->
+--                        if f64.abs r > b
+--                        then i
+--                        else i64.highest
+--                     ) (iota nm1) roc bound
+--                |> reduce_comm i64.min i64.highest
+--          ) rocs bounds
+--   in map3 (\ind nn pval ->
+--             let chk = !(f64.isnan pval) && pval < level && ind != i64.highest
+--             let y_start = if chk then nn - ind else 0
+--             in y_start
+--           ) inds nns pvals
+
 entry mhistory_roc [m][N][k] level confidence
                              (X: [N][k]f64) (ys: [m][N]f64) =
-  let (rocs, nns) = rcusum (reverse X) (map reverse ys)
-  -- TODO fuse pval and bounds and ind, if same inner sizes
-  let pvals = map2 sctest rocs nns
+  -- COMPUTE ROC
+  -- Empircal fluctuation process containing recursive residuals.
+  -- Outputs recursive CUSUM and number of non nan values _excluding_
+  -- the prepended zero for each `y` in `ys`.
+  let (wTs, _, ns) = mrecresid (reverse X) (map reverse ys)
+  let ws = transpose wTs
+  -- Standardize and insert 0 in front.
+  let Nmk = N-k+1
+  let (rocs, nns, pvals) = unzip3 <|
+    map2 (\w npk ->
+           let n = npk - k -- num non nan recursive residuals
+           let s = sample_sd_nan w n
+           let fr = s * f64.sqrt(f64.i64 n)
+           let sdized = map (\j -> if j == 0 then 0 else w[j-1]/fr) (iota Nmk)
+           let roc = scan (+) 0f64 sdized
+           -- Structural change test for Brownian motion.
+           -- `num_non_nan` is without the initial zero in process.
+           let nf64 = f64.i64 n
+           let xs = roc[1:]
+           let div i = 1 + (f64.i64 (2*i+2)) / nf64
+           let x = f64.maximum <| map2 (\x i -> f64.abs (x/(div i))) xs (indices xs)
+           let pval = pval_brownian_motion_max x
+           in (roc, n, pval)
+        ) ws ns
   let n = N - k + 1
   let bounds = map (boundary confidence n) nns
   -- index of first time roc crosses the boundary
