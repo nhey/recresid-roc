@@ -71,10 +71,7 @@ let sctest [n] (process: [n]f64) (num_non_nan: i64) : f64 =
   let xs = process[1:]
   -- x = max(abs(xs * 1/(1 + 2*j))) where j = 1/n, 2/n, ..., n.
   let div i = 1 + (f64.i64 (2*i+2)) / nf64
-  let x = f64.maximum <| map2 (\x i -> if f64.isnan x
-                                       then -f64.inf
-                                       else f64.abs (x/(div i))
-                              ) xs (indices xs)
+  let x = map2 (\x i -> f64.abs (x/(div i))) xs (indices xs) |> f64.maximum
   in pval_brownian_motion_max x
 
 -- `N` is padded length.
