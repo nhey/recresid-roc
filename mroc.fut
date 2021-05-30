@@ -97,39 +97,38 @@ entry mhistory_roc [m][N][k] level confidence
   let ws = transpose wTs
   -- Standardize and insert 0 in front.
   let Nmkp1 = N-k+1
-  let (nns, pvals, inds) = unzip3 <|
-    map2 (\w npk ->
-           let n = npk - k -- num non nan recursive residuals
-           let s = sample_sd_nan w n
-           let fr = s * f64.sqrt(f64.i64 n)
-           let sdized = map (\j -> if j == 0 then 0 else w[j-1]/fr) (iota Nmkp1)
-           let roc = scan (+) 0f64 sdized
-           -- SCTEST
-           -- Structural change test for Brownian motion.
-           -- `num_non_nan` is without the initial zero in process.
-           let nf64 = f64.i64 n
-           let xs = roc[1:]
-           let div i = 1 + (f64.i64 (2*i+2)) / nf64
-           let x = f64.maximum <| map2 (\x i -> f64.abs (x/(div i))) xs (indices xs)
-           let pval = pval_brownian_motion_max x
-           -- BOUNDARY
-           -- conf*(1 + 2*t) with t in [0,1].
-           let bound =
-             map (\i -> if i < n + 1
-                        then confidence + (2*confidence*(f64.i64 i))/nf64
-                        else f64.nan
-                 ) (iota Nmkp1)
-           -- INDEX OF CROSSING
-           let ind = map3 (\i r b ->
-                      if f64.abs r > b
-                      then i
-                      else i64.highest
-                   ) (indices xs) xs bound[1:]
-              |> reduce_comm i64.min i64.highest
-           in (n, pval, ind)
-        ) ws ns
-  in map3 (\ind nn pval ->
-            let chk = !(f64.isnan pval) && pval < level && ind != i64.highest
-            let y_start = if chk then nn - ind else 0
-            in y_start
-          ) inds nns pvals
+  in map2 (\w npk ->
+             -- RCUSUM CONT.
+             -- Standardize and insert 0 in front.
+             let n = npk - k -- num non nan recursive residuals
+             let s = sample_sd_nan w n
+             let fr = s * f64.sqrt(f64.i64 n)
+             let sdized = map (\j -> if j == 0 then 0 else w[j-1]/fr) (iota Nmkp1)
+             let roc = scan (+) 0f64 sdized
+             -- SCTEST
+             -- Structural change test for Brownian motion.
+             -- `num_non_nan` is without the initial zero in process.
+             let nf64 = f64.i64 n
+             let xs = roc[1:]
+             let div i = 1 + (f64.i64 (2*i+2)) / nf64
+             let x = f64.maximum <| map2 (\x i -> f64.abs (x/(div i))) xs (indices xs)
+             let pval = pval_brownian_motion_max x
+             -- BOUNDARY
+             -- conf*(1 + 2*t) with t in [0,1].
+             let bound =
+               map (\i -> if i < n + 1
+                          then confidence + (2*confidence*(f64.i64 i))/nf64
+                          else f64.nan
+                   ) (iota Nmkp1)
+             -- INDEX OF CROSSING
+             let ind = map3 (\i r b ->
+                        if f64.abs r > b
+                        then i
+                        else i64.highest
+                     ) (indices xs) xs bound[1:]
+                |> reduce_comm i64.min i64.highest
+             -- INDEX OF HISTORY START
+             let chk = !(f64.isnan pval) && pval < level && ind != i64.highest
+             let y_start = if chk then n - ind else 0
+             in y_start
+          ) ws ns
