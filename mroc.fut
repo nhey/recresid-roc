@@ -55,7 +55,7 @@ entry mhistory_roc [m][N][k] level confidence
   let (wTs, _, ns) = mrecresid (reverse X) (map reverse ys)
   let ws = transpose wTs
   let Nmkp1 = N-k+1
-  in map2 (\w npk ->
+  in map2 (\w npk -> -- INNER SIZE N - k---not really also Nmkp1, perforamnce bug if not
              -- RCUSUM CONT.
              -- Standardize and insert 0 in front.
              let n = npk - k -- num non nan recursive residuals
@@ -71,21 +71,16 @@ entry mhistory_roc [m][N][k] level confidence
              let nf64 = f64.i64 n
              let xs = roc[1:]
              let div i = 1 + (f64.i64 (2*i+2)) / nf64
-             let x = f64.maximum <| map2 (\x i -> f64.abs (x/(div i))) xs (indices xs)
+             let x = f64.maximum <| map2 (\i x -> f64.abs (x/(div i))) (indices xs) xs
              let pval = pval_brownian_motion_max x
              -- BOUNDARY
              -- conf*(1 + 2*t) with t in [0,1].
-             let bound =
-               map (\i -> if i < n + 1
-                          then confidence + (2*confidence*(f64.i64 i))/nf64
-                          else f64.nan
-                   ) (iota Nmkp1)
              -- INDEX OF CROSSING
-             let ind = map3 (\i r b ->
-                        if f64.abs r > b
+             let ind = map2 (\i r ->
+                        if f64.abs r > (confidence + (2*confidence*(f64.i64 i+1))/nf64)
                         then i
                         else i64.highest
-                     ) (indices xs) xs bound[1:]
+                     ) (indices xs) xs
                 |> reduce_comm i64.min i64.highest
              -- INDEX OF HISTORY START
              let chk = !(f64.isnan pval) && pval < level && ind != i64.highest
