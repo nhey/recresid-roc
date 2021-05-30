@@ -42,15 +42,14 @@ let rcusum [m][N][k] (X: [N][k]f64) (ys: [m][N]f64) =
   let (wTs, _, ns) = mrecresid X ys
   let ws = transpose wTs
   let ns = map (\n -> n - k) ns
-  -- compute sample sd, ignoring nans
-  let sample_sds = map2 sample_sd_nan ws ns
   -- Standardize and insert 0 in front.
-  let n = N-k+1
+  let Nmk = N-k+1
   let standardized =
-    map3 (\i s num_non_nan ->
-           let fr = s * f64.sqrt(f64.i64 num_non_nan)
-           in map (\j -> if j == 0 then 0 else ws[i, j-1]/fr) (iota n)
-        ) (iota m) sample_sds ns
+    map3 (\i w n ->
+           let s = sample_sd_nan w n
+           let fr = s * f64.sqrt(f64.i64 n)
+           in map (\j -> if j == 0 then 0 else ws[i, j-1]/fr) (iota Nmk)
+        ) (iota m) ws ns
   in (map (scan (+) 0f64) standardized, ns)
 
 let std_normal_cdf =
