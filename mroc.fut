@@ -38,19 +38,19 @@ let sample_sd_nan [m] (xs: [m]f64) (num_non_nan: i64) =
 -- Outputs recursive CUSUM and number of non nan values _excluding_
 -- the prepended zero for each `y` in `ys`.
 let rcusum [m][N][k] (X: [N][k]f64) (ys: [m][N]f64) =
-  -- TODO use mrecresid_nn and propage Xs_nn ys_nn outwards
   let (wTs, _, ns) = mrecresid X ys
   let ws = transpose wTs
-  let ns = map (\n -> n - k) ns
   -- Standardize and insert 0 in front.
   let Nmk = N-k+1
-  let standardized =
-    map3 (\i w n ->
+  let (process, ns) = unzip <|
+    map2 (\w npk ->
+           let n = npk - k -- num non nan recursive residuals
            let s = sample_sd_nan w n
            let fr = s * f64.sqrt(f64.i64 n)
-           in map (\j -> if j == 0 then 0 else ws[i, j-1]/fr) (iota Nmk)
-        ) (iota m) ws ns
-  in (map (scan (+) 0f64) standardized, ns)
+           let sdized = map (\j -> if j == 0 then 0 else w[j-1]/fr) (iota Nmk)
+           in (scan(+) 0f64 sdized, n)
+        ) ws ns
+  in (process, ns)
 
 let std_normal_cdf =
   stats.cdf (stats.mk_normal {mu=0f64, sigma=1f64})
