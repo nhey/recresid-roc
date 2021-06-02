@@ -35,10 +35,6 @@ let allequal target current tol =
 let approx_equal x y tol =
   (mean_abs (map2 (-) x y)) <= tol
 
--- Dotproduct ignoring nans.
-let dotprod_nan [n] (xs: [n]f64) (ys: [n]f64): f64 =
-  reduce (+) 0 (map2 (\x y -> if f64.isnan y then 0 else x*y) xs ys)
-
 -- NOTE: input cannot contain nan values
 entry recresid [n][k] (X': [k][n]f64) (y: [n]f64) =
   let tol = f64.sqrt(f64.epsilon) / (f64.i64 k) -- TODO: pass tol as arg?
@@ -54,7 +50,7 @@ entry recresid [n][k] (X': [k][n]f64) (y: [n]f64) =
     let x = X'[:, r]
     let d = linalg.matvecmul_row X1r x
     let fr = 1 + (linalg.dotprod x d)
-    let resid = y[r] - dotprod_nan x betar
+    let resid = y[r] - linalg.dotprod x betar
     let recresidr = resid / f64.sqrt(fr)
 
     -- Update formulas
@@ -62,7 +58,7 @@ entry recresid [n][k] (X': [k][n]f64) (y: [n]f64) =
     -- X1r = X1r - ddT/fr
     let X1r = map2 (map2 (\x y -> x - y/fr)) X1r ddT
     -- beta = beta + X1 x * resid
-    let betar = map2 (+) betar (map (dotprod_nan x >-> (*resid)) X1r)
+    let betar = map2 (+) betar (map (linalg.dotprod x >-> (*resid)) X1r)
     in (X1r, betar, recresidr)
 
   -- Perform first few iterations of update formulas with
