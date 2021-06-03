@@ -134,7 +134,8 @@ entry mrecresid_nn [m][N][k] (Xs_nn: [m][N][k]f64) (ys_nn: [m][N]f64) =
   let rets = replicate (m*num_recresids_padded) 0
              |> unflatten num_recresids_padded m
 
-  let loop_body r X1 beta X_nn y_nn =
+  let loop_body (r: i64) (X1: [k][k]f64) (beta: [k]f64)
+                (X_nn: [N][k]f64) (y_nn: [N]f64) =
     -- Compute recursive residual
     let x = X_nn[r, :]
     let d = linalg.matvecmul_row X1 x
@@ -196,13 +197,17 @@ entry mrecresid [m][N][k] (X: [N][k]f64) (ys: [m][N]f64) =
   --
   -- Rearrange `ys` so that valid values come before nans.
   let (ns, ys_nn, indss_nn) = unzip3 (map filter_nan_pad ys)
+  -- Upper bound on number of non-nans
+  let Nbar = i64.maximum ns
   -- Repeat this for `X`.
-  let Xs_nn: *[m][N][k]f64 =
+  let Xs_nn: *[m][Nbar][k]f64 =
     map (\j ->
-           map (\i -> if i >= 0 then X[i, :] else replicate k f64.nan) indss_nn[j]
+           map (\i -> if i >= 0 then X[i, :] else replicate k f64.nan) indss_nn[j,:Nbar]
         ) (iota m)
+  -- Subset ys
+  let ys_nn = ys_nn[:,:Nbar]
 
   -- I expect this to optimized away.
   let _sanity_check = map (\n -> assert (n > k) true) ns
   let (retsT, num_checks) = mrecresid_nn Xs_nn ys_nn
-  in (retsT, num_checks, ns)
+  in (retsT, num_checks, Nbar, ns)

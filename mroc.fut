@@ -38,10 +38,10 @@ let sample_sd_nan [m] (xs: [m]f64) (num_non_nan: i64) =
 -- Outputs recursive CUSUM and number of non nan values _excluding_
 -- the prepended zero for each `y` in `ys`.
 let rcusum [m][N][k] (X: [N][k]f64) (ys: [m][N]f64) =
-  let (wTs, _, ns) = mrecresid X ys
+  let (wTs, _, Nbar, ns) = mrecresid X ys
   let ws = transpose wTs
   -- Standardize and insert 0 in front.
-  let Nmk = N-k+1
+  let Nmk = Nbar-k+1
   let (process, ns) = unzip <|
     map2 (\w npk ->
            let n = npk - k -- num non nan recursive residuals
@@ -50,7 +50,7 @@ let rcusum [m][N][k] (X: [N][k]f64) (ys: [m][N]f64) =
            let sdized = map (\j -> if j == 0 then 0 else w[j-1]/fr) (iota Nmk)
            in (scan(+) 0f64 sdized, n)
         ) ws ns
-  in (process, ns)
+  in (process, Nbar, ns)
 
 let std_normal_cdf =
   stats.cdf (stats.mk_normal {mu=0f64, sigma=1f64})
@@ -90,10 +90,10 @@ let boundary confidence N nm1: [N]f64 =
 -- Map distributed stable history computation.
 entry mhistory_roc [m][N][k] level confidence
                              (X: [N][k]f64) (ys: [m][N]f64) =
-  let (rocs, nns) = rcusum (reverse X) (map reverse ys)
+  let (rocs, Nbar, nns) = rcusum (reverse X) (map reverse ys)
   -- TODO fuse pval and bounds and ind, if same inner sizes
   let pvals = map2 sctest rocs nns
-  let n = N - k + 1
+  let n = Nbar - k + 1
   let bounds = map (boundary confidence n) nns
   -- index of first time roc crosses the boundary
   let inds =
