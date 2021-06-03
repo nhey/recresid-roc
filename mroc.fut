@@ -113,3 +113,47 @@ entry mhistory_roc [m][N][k] level confidence
             let y_start = if chk then nn - ind else 0
             in y_start
           ) inds nns pvals
+
+-- Not faster, even though I reduce memory access.
+-- Compiler seems to be better at fusing kernels than me.
+entry mhistory_roc_inline [m][N][k] level confidence
+                             (X: [N][k]f64) (ys: [m][N]f64) =
+  -- RCUSUM
+  -- Empircal fluctuation process containing recursive residuals.
+  -- Outputs recursive CUSUM and number of non nan values _excluding_
+  -- the prepended zero for each `y` in `ys`.
+  let (wTs, _, Nbar, ns) = mrecresid (reverse X) (map reverse ys)
+  let ws = transpose wTs
+  let Nmkp1 = Nbar-k+1
+  in map2 (\w npk -> -- INNER SIZE Nmkp1 (can be split into Nmkp1 and Nmkp1-1)
+             -- RCUSUM CONT.
+             -- Standardize and insert 0 in front.
+             let n = npk - k -- num non nan recursive residuals
+             let s = sample_sd_nan w n
+             let fr = s * f64.sqrt(f64.i64 n)
+             -- TODO never use prepended 0, but changing this results in
+             -- significantly poorer performance. Some weird bug I think.
+             let sdized = map (\j -> if j == 0 then 0 else w[j-1]/fr) (iota Nmkp1)
+             let roc = scan (+) 0f64 sdized
+             -- SCTEST
+             -- Structural change test for Brownian motion.
+             -- `num_non_nan` is without the initial zero in process.
+             let nf64 = f64.i64 n
+             let xs = roc[1:]
+             let div i = 1 + (f64.i64 (2*i+2)) / nf64
+             let x = f64.maximum <| map2 (\i x -> f64.abs (x/(div i))) (indices xs) xs
+             let pval = pval_brownian_motion_max x
+             -- BOUNDARY
+             -- conf*(1 + 2*t) with t in [0,1].
+             -- INDEX OF CROSSING
+             let ind = map2 (\i r ->
+                        if f64.abs r > (confidence + (2*confidence*(f64.i64 i+1))/nf64)
+                        then i
+                        else i64.highest
+                     ) (indices xs) xs
+                |> reduce_comm i64.min i64.highest
+             -- INDEX OF HISTORY START
+             let chk = !(f64.isnan pval) && pval < level && ind != i64.highest
+             let y_start = if chk then n - ind else 0
+             in y_start
+          ) ws ns
