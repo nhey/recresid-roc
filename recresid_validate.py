@@ -18,12 +18,12 @@ def validate(name, chunks, X, image, cache_dir=".cache/recresid"):
     if not os.path.isdir(cache_dir):
       os.makedirs(cache_dir)
     py_res_file = "{}/{}.chunk{}.npy".format(cache_dir, name, i)
+    num_recresids_padded = N-k
     if os.path.exists(py_res_file):
       with open(py_res_file, "rb") as f:
         py_res = np.load(f)
       print("loaded from", py_res_file)
     else:
-      num_recresids_padded = N-k
       py_res = np.empty((image_chunk.shape[0],num_recresids_padded))
       py_res.fill(np.nan)
       t_start = timer()
@@ -46,9 +46,11 @@ def validate(name, chunks, X, image, cache_dir=".cache/recresid"):
 
     print("Computing opencl results...", end="")
     t_start = timer()
-    ocl_resT, num_checks, _ = recresid_fut.mrecresid(X, image_chunk)
+    ocl_resT, num_checks, Nbar, _ = recresid_fut.mrecresid(X, image_chunk)
     t_stop = timer()
-    ocl_res = ocl_resT.get().T
+    ocl_res = np.empty((image_chunk.shape[0],num_recresids_padded))
+    ocl_res.fill(np.nan)
+    ocl_res[:,:Nbar-k] = ocl_resT.get().T
     print(timedelta(seconds=t_stop-t_start))
 
     check = np.allclose(py_res, ocl_res, equal_nan=True)
