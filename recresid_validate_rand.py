@@ -29,7 +29,7 @@ for fname in glob("./data/*.in"):
     ynn = y[~nan_inds]
     Xnn = X[~nan_inds]
     py_res = recresid(Xnn, ynn)
-    ocl_res, num_checks = recresid_fut.recresid(Xnn.T, ynn)
+    ocl_res, num_checks = recresid_fut.recresid(Xnn, ynn)
 
     max_num_checks = max(max_num_checks, num_checks)
 

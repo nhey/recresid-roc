@@ -36,18 +36,18 @@ let approx_equal x y tol =
   (mean_abs (map2 (-) x y)) <= tol
 
 -- NOTE: input cannot contain nan values
-entry recresid [n][k] (X': [k][n]f64) (y: [n]f64) =
+entry recresid [n][k] (X: [n][k]f64) (y: [n]f64) =
   let tol = f64.sqrt(f64.epsilon) / (f64.i64 k) -- TODO: pass tol as arg?
   let ret = replicate (n - k) 0
 
   -- Initialize recursion
-  let model = lm.fit X'[:, :k] y[:k]
+  let model = lm.fit (transpose X[:k, :]) y[:k]
   let X1: [k][k]f64 = model.cov_params -- (X.T X)^(-1)
   let beta: [k]f64 = model.params
 
   let loop_body r X1r betar =
     -- Compute recursive residual
-    let x = X'[:, r]
+    let x = X[r, :]
     let d = linalg.matvecmul_row X1r x
     let fr = 1 + (linalg.dotprod x d)
     let resid = y[r] - linalg.dotprod x betar
@@ -73,7 +73,7 @@ entry recresid [n][k] (X': [k][n]f64) (y: [n]f64) =
       let (check, X1r, betar, rank) =
         if check && (r+1 < n) then
           -- We check update formula value against full OLS fit
-          let model = lm.fit X'[:, :r+1] y[:r+1]
+          let model = lm.fit (transpose X[:r+1, :]) y[:r+1]
           let nona = !(f64.isnan recresidr) && rank == k
                                             && model.rank == k
           let check = !(nona && approx_equal model.params betar tol)
