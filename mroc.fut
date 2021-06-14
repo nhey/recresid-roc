@@ -85,13 +85,10 @@ let boundary confidence N nm1: [N]f64 =
                 else f64.nan
          ) (iota N)
 
--- TODO handle all nan input
--- TODO fuse maps around inner sizes
 -- Map distributed stable history computation.
 entry mhistory_roc [m][N][k] level confidence
                              (X: [N][k]f64) (ys: [m][N]f64) =
   let (rocs, Nbar, nns) = rcusum (reverse X) (map reverse ys)
-  -- TODO fuse pval and bounds and ind, if same inner sizes
   let pvals = map2 sctest rocs nns
   let n = Nbar - k + 1
   let bounds = map (boundary confidence n) nns
