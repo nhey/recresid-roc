@@ -1,15 +1,21 @@
 import numpy as np
-from scipy.linalg import cho_solve
-from .dqrls import dqrls
+from scipy.linalg import cho_solve, solve_triangular
+from .dqrdc2 import dqrdc2
+from .dqrqty import dqrqty
 
 def lm(X, y):
   n,p  = X.shape
-  # Note dqrls overwrites its inputs
-  qr, b, rsd, qty, rank, jpvt, qraux = dqrls(X.copy(), n, p, y.copy())
-  r = np.triu(qr)[:p, :p]
+  y = y.reshape(n)
+  A, rank, qraux, jpvt = dqrdc2(X.copy(), n, n, p)
+  r = np.triu(A)[:p, :p]
   # Inverting r with cholesky gives (X.T X)^{-1}
   cov_params = cho_solve((r[:rank, :rank], False), np.identity(rank))
+  # compute parameters
+  qty = dqrqty(A, qraux, rank, y.copy())
+  beta = solve_triangular(r[:rank, :rank], qty[:rank])
   # Pivot fitted parameters to match original order of Xs columns
+  b = np.zeros(p)
+  b[:rank] = beta
   b[jpvt] = b[range(p)]
   scratch = np.zeros((p,p))
   scratch[:rank, :rank] = cov_params
