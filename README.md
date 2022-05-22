@@ -2,6 +2,8 @@ Recursive residuals and reversely-ordered CUSUM in futhark and python.
 Map-distributed versions are provided; they produce satisfactory results
 (correct within tolerance), but have yet to be optimised.
 
+The main entrypoint is `mhistory_roc` in `mroc.fut`.
+
 Futhark and python versions are validated against each other by running
 `make validate_recresid` and `make validate_roc`.
 Generate data sets in `/data` first, e.g. `make d-10-200-60.in`.
